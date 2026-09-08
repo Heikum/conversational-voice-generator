@@ -679,16 +679,27 @@ async function callCustomer(systemPrompt){
   // non-reasoning models; if a model rejects the param outright we retry without.
   let useReasoningParam = true;
 
+  // Timeout via Promise.race rather than AbortController: some embedded browser
+  // contexts structured-clone the fetch init and choke on a non-cloneable
+  // AbortSignal ("could not be cloned"). The request isn't truly cancelled, but
+  // the turn recovers and the retry button works.
+  function withTimeout(promise, ms){
+    let t;
+    const timeout = new Promise((_, reject) => {
+      t = setTimeout(() => reject(new Error(
+        "Time-out: het model reageerde niet binnen " + Math.round(ms / 1000) + " seconden.")), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+  }
+
   async function doFetch(withSchema, timeoutMs){
     const body = { ...base };
     if(useReasoningParam) body.reasoning = { effort: "low" };
     if(withSchema) body.response_format = { type: "json_schema", json_schema: REPLY_SCHEMA };
 
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), timeoutMs || 60000);
     let res;
     try {
-      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      res = await withTimeout(fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + key,
@@ -697,14 +708,10 @@ async function callCustomer(systemPrompt){
           "X-Title": "Essent Voicebot Testcase Generator",
         },
         body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
+      }), timeoutMs || 60000);
     } catch(e){
-      if(e && e.name === "AbortError")
-        throw new Error("Time-out: het model reageerde niet binnen " + Math.round((timeoutMs || 60000)/1000) + " seconden.");
+      if(e && /^Time-out:/.test(e.message)) throw e;
       throw new Error("Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e));
-    } finally {
-      clearTimeout(to);
     }
     if(!res.ok){
       const txt = await res.text().catch(() => "");

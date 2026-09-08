@@ -90,6 +90,9 @@
   .bubble .t{display:block; font-size:11px; opacity:.5; margin-top:6px}
   .bubble.bot{background:var(--bot-bubble); border-bottom-left-radius:5px; align-self:flex-start}
   .bubble.customer{background:var(--essent-red-deep); color:#fff; border-bottom-right-radius:5px; align-self:flex-end}
+  .clip-btn{margin-top:6px; background:rgba(255,255,255,.22); color:#fff; border:0; border-radius:999px;
+    font-size:11px; line-height:1; padding:4px 9px; cursor:pointer}
+  .clip-btn:hover{background:rgba(255,255,255,.38)}
   .bubble.err{background:#fde8ec; color:#8a0018; border:1px solid #f4b8c4; align-self:flex-start; max-width:92%}
   .bubble.err button{margin-top:8px}
 
@@ -193,6 +196,11 @@
       <label for="edge">Forceer edge case — voegt per beurt één curveball-instructie toe aan de prompt (verkeerd cijfer, van gedachten veranderen, achtergrondgeluid, weerstand…).</label>
     </div>
 
+    <div class="chk">
+      <input type="checkbox" id="voice" />
+      <label for="voice">Klantstem — spreekt elke klantregel hardop uit (TTS via <code>openai/gpt-audio-mini</code>, ~1–2s per regel, met emotie op basis van de Stemming-slider). Je kunt ook los op ▶ bij een klantregel klikken.</label>
+    </div>
+
     <label class="field" for="apikey">OpenRouter API-sleutel</label>
     <input type="password" id="apikey" placeholder="sk-or-..." autocomplete="off" spellcheck="false" />
     <div class="warn">⚠️ Let op: de sleutel wordt in de browser opgeslagen (localStorage) en gaat mee in het netwerkverkeer vanuit de client. Alleen acceptabel voor deze interne testtool — nooit publiek deployen.</div>
@@ -233,6 +241,8 @@
     <div class="export-row">
       <button class="btn ghost small" id="btn-copy" disabled>Kopieer transcript</button>
       <button class="btn ghost small" id="btn-download" disabled>Download transcript (.json)</button>
+      <button class="btn ghost small" id="btn-playall" disabled>🔊 Speel klant af</button>
+      <button class="btn ghost small" id="btn-audio-dl" disabled>⬇︎ Klantaudio (.wav)</button>
     </div>
   </section>
 </main>
@@ -246,6 +256,9 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "z-ai/glm-5.3-flash";        // customer replies
 const IMAGE_MODEL   = "google/gemini-2.5-flash-image";  // optional persona portrait
+const VOICE_MODEL   = "openai/gpt-audio-mini";     // optional: speak the customer's lines
+const VOICE_NAME    = "ash";                       // gpt-audio voice
+const VOICE_SR      = 24000;                       // gpt-audio pcm16 sample rate
 const DEFAULTS = { intelligence:55, tech:55, mood:25 };
 
 /* ---- persona descriptor bands ---- */
@@ -465,6 +478,9 @@ const personaFig = $("persona-fig");
 const personaImg = $("persona-img");
 const personaPlaceholder = $("persona-placeholder");
 const personaCap = $("persona-cap");
+const voiceChk = $("voice");
+const playAllBtn = $("btn-playall");
+const audioDlBtn = $("btn-audio-dl");
 
 /* ---------- module state ---------- */
 let scenario = SCENARIOS[0];
@@ -531,7 +547,16 @@ function botSay(text){
 function customerSay(text){
   const ts = new Date().toISOString();
   S.transcript.push({ role:"customer", text, ts });
-  appendBubble("customer", "Klant", text, ts);
+  const idx = S.transcript.length - 1;
+  const el = appendBubble("customer", "Klant", text, ts);
+  const b = document.createElement("button");
+  b.className = "clip-btn";
+  b.type = "button";
+  b.textContent = "▶";
+  b.title = "Deze klantregel hardop uitspreken";
+  b.addEventListener("click", () => speakTranscript(idx, b));
+  el.appendChild(b);
+  scrollBottom();
 }
 function renderError(err){
   const el = document.createElement("div");
@@ -746,6 +771,156 @@ function savePersonaImage(){
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   } catch(e){
     toast("Opslaan geblokkeerd — rechtsklik op de afbeelding om te bewaren");
+  }
+}
+
+/* ---------- customer voice (optional TTS of the customer's lines) ---------- */
+let currentAudio = null;
+let playAllActive = false;
+let audioDlBusy = false;
+
+function stopAudio(){
+  if(currentAudio){ try { currentAudio.pause(); } catch(e){} currentAudio = null; }
+  playAllActive = false;
+}
+
+function pcm16ToWav(pcmBytes, sampleRate){
+  const blockAlign = 2, byteRate = sampleRate * blockAlign;
+  const buf = new ArrayBuffer(44 + pcmBytes.length);
+  const dv = new DataView(buf);
+  const ws = (off, str) => { for(let i = 0; i < str.length; i++) dv.setUint8(off + i, str.charCodeAt(i)); };
+  ws(0, "RIFF"); dv.setUint32(4, 36 + pcmBytes.length, true); ws(8, "WAVE");
+  ws(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sampleRate, true); dv.setUint32(28, byteRate, true);
+  dv.setUint16(32, blockAlign, true); dv.setUint16(34, 16, true);
+  ws(36, "data"); dv.setUint32(40, pcmBytes.length, true);
+  new Uint8Array(buf, 44).set(pcmBytes);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+// One TTS call: streamed pcm16 (gpt-audio only streams audio), muxed into a WAV.
+async function ttsLine(text, moodDesc, timeoutMs){
+  const res = await orPost({
+    model: VOICE_MODEL,
+    stream: true,
+    temperature: 0,
+    modalities: ["text", "audio"],
+    audio: { voice: VOICE_NAME, format: "pcm16" },
+    messages: [
+      { role: "system", content:
+        "Je bent uitsluitend een tekst-naar-spraak-engine. Spreek de zin van de gebruiker LETTERLIJK en woordelijk uit in het Nederlands. " +
+        "Je beantwoordt de zin niet, voegt niets toe, laat niets weg en herformuleert niet. " +
+        "Het is een telefoongesprek met de klantenservice en jij bent de klant. Emotie en toon: " + moodDesc + "." },
+      { role: "user", content: text },
+    ],
+  }, timeoutMs || 60000);
+  if(!res.ok){
+    const txt = await res.text().catch(() => "");
+    throw new Error("OpenRouter " + res.status + ": " + txt.slice(0, 160));
+  }
+  const reader = res.body.getReader(), td = new TextDecoder();
+  let buff = "", b64 = "";
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buff += td.decode(value, { stream: true });
+    const lines = buff.split("\n"); buff = lines.pop();
+    for(const line of lines){
+      const s = line.trim();
+      if(!s.startsWith("data:")) continue;
+      const p = s.slice(5).trim();
+      if(p === "[DONE]") continue;
+      try {
+        const o = JSON.parse(p);
+        const d = o.choices && o.choices[0] && o.choices[0].delta;
+        if(d && d.audio && d.audio.data) b64 += d.audio.data;
+      } catch(e){}
+    }
+  }
+  if(!b64) throw new Error("Geen audio in het antwoord van het model.");
+  const bin = atob(b64), pcm = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) pcm[i] = bin.charCodeAt(i);
+  return { pcm, url: URL.createObjectURL(pcm16ToWav(pcm, VOICE_SR)) };
+}
+
+async function ensureClip(t){
+  if(t._pcm) return;
+  const mood = desc("mood", (S.sliders && S.sliders.mood != null) ? S.sliders.mood : readSliders().mood);
+  const clip = await ttsLine(t.text, mood, 60000);
+  t._pcm = clip.pcm;
+  t.audioUrl = clip.url;
+}
+
+async function speakTranscript(idx, btn){
+  const t = S.transcript[idx];
+  if(!t || t.role !== "customer") return;
+  const gen = E.gen;
+  try {
+    if(!t._pcm){
+      if(btn) btn.textContent = "…";
+      await ensureClip(t);
+      if(gen !== E.gen) return;   // session was reset while generating
+    }
+    stopAudio();
+    currentAudio = new Audio(t.audioUrl);
+    if(btn) btn.textContent = "⏸";
+    try { await currentAudio.play(); } catch(e){ /* autoplay policy — needs a click */ }
+    await new Promise(resolve => {
+      if(!currentAudio){ resolve(); return; }
+      currentAudio.onended = resolve;
+      currentAudio.onerror = resolve;
+    });
+  } catch(e){
+    toast("Stem mislukt: " + (e && e.message ? e.message : e));
+  } finally {
+    if(btn) btn.textContent = "▶";
+  }
+}
+
+async function playAllCustomer(){
+  if(playAllActive){ stopAudio(); playAllBtn.textContent = "🔊 Speel klant af"; return; }
+  const idxs = S.transcript.map((t, i) => t.role === "customer" ? i : -1).filter(i => i >= 0);
+  if(!idxs.length) return;
+  playAllActive = true;
+  playAllBtn.textContent = "⏹ Stop";
+  for(const i of idxs){
+    if(!playAllActive) break;
+    await speakTranscript(i);
+  }
+  playAllActive = false;
+  playAllBtn.textContent = "🔊 Speel klant af";
+}
+
+async function downloadCustomerAudio(){
+  if(audioDlBusy) return;
+  const idxs = S.transcript.map((t, i) => t.role === "customer" ? i : -1).filter(i => i >= 0);
+  if(!idxs.length) return;
+  audioDlBusy = true;
+  audioDlBtn.disabled = true;
+  const missing = idxs.filter(i => !S.transcript[i]._pcm).length;
+  if(missing) toast("Audio genereren voor " + missing + " regel(s)…");
+  try {
+    for(const i of idxs) await ensureClip(S.transcript[i]);
+    const gap = new Uint8Array(Math.round(VOICE_SR * 2 * 0.4));   // ~0.4s silence between lines
+    let total = 0;
+    idxs.forEach(i => { total += S.transcript[i]._pcm.length; });
+    total += gap.length * Math.max(0, idxs.length - 1);
+    const merged = new Uint8Array(total);
+    let off = 0;
+    idxs.forEach((i, k) => {
+      merged.set(S.transcript[i]._pcm, off); off += S.transcript[i]._pcm.length;
+      if(k < idxs.length - 1){ merged.set(gap, off); off += gap.length; }
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(pcm16ToWav(merged, VOICE_SR));
+    a.download = "essent-klantaudio-" + (S.seed || "sessie") + "-" + Date.now() + ".wav";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch(e){
+    toast("Audio-download mislukt: " + (e && e.message ? e.message : e));
+  } finally {
+    audioDlBusy = false;
+    audioDlBtn.disabled = !(S.status === "complete" || S.status === "failed" || S.status === "ended_by_customer");
   }
 }
 
@@ -1141,6 +1316,11 @@ async function runStep(){
   showThinking(false);
   customerSay(reply.spoken_reply);
 
+  if(voiceChk.checked){
+    await speakTranscript(S.transcript.length - 1);
+    if(gen !== E.gen || !E.running) return;
+  }
+
   if(reply.wants_to_end_call){
     logMeta("Klant wil ophangen — gesprek afgebroken");
     botSay(LINES.customerEnded);
@@ -1185,7 +1365,12 @@ function renderSummary(){
 }
 
 /* ---------- export ---------- */
-function exportEnabled(on){ copyBtn.disabled = !on; downloadBtn.disabled = !on; }
+function exportEnabled(on){
+  copyBtn.disabled = !on;
+  downloadBtn.disabled = !on;
+  playAllBtn.disabled = !on;
+  audioDlBtn.disabled = !on;
+}
 
 function buildExport(){
   return {
@@ -1301,6 +1486,8 @@ function onStart(){
   metaLogEl.innerHTML = "";
   renderGroundTruth();
   resetPersona();
+  stopAudio();
+  playAllBtn.textContent = "🔊 Speel klant af";
   exportEnabled(false);
   startBtn.disabled = true;
 
@@ -1327,6 +1514,8 @@ function onNewSession(){
   metaLogEl.innerHTML = "";
   renderGroundTruth();
   resetPersona();
+  stopAudio();
+  playAllBtn.textContent = "🔊 Speel klant af";
   exportEnabled(false);
   startBtn.disabled = !keyInput.value.trim();
   updateStatus();
@@ -1385,6 +1574,8 @@ function onRandomize(){
   randBtn.addEventListener("click", onRandomize);
   personaBtn.addEventListener("click", generatePersonaImage);
   personaDlBtn.addEventListener("click", savePersonaImage);
+  playAllBtn.addEventListener("click", playAllCustomer);
+  audioDlBtn.addEventListener("click", downloadCustomerAudio);
 
   copyBtn.addEventListener("click", async () => {
     const text = buildPlainText();

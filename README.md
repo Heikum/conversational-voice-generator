@@ -47,6 +47,16 @@ The transcript is paced at roughly one line every ~2 seconds (`TURN_GAP_MS` /
 `BOT_READ_MS` in `index.html`) so a viewer can follow the call unfold even when
 the model responds instantly; when the model is slow its latency dominates.
 
+**Klantstem (optional TTS).** Only the *customer's* lines, never the bot's. Tick
+**Klantstem** to have each customer reply spoken aloud as it appears, or click
+▶ on any customer bubble to (re)play just that line. `openai/gpt-audio-mini`
+via OpenRouter, streamed as pcm16 and muxed to WAV in the browser; emotion is
+taken from the Stemming slider. After a session: **🔊 Speel klant af** plays all
+customer lines back to back, **⬇︎ Klantaudio (.wav)** downloads them as one file
+(clips generated on demand, ~1–2s each, ~$0.002/line with the mini model).
+Model/voice are `VOICE_MODEL` / `VOICE_NAME` in `index.html`. Auto-play mid-call
+can be blocked by the browser's autoplay policy — the ▶ buttons always work.
+
 The customer model is fixed to **`z-ai/glm-5.3-flash`** (`DEFAULT_MODEL` in
 `index.html`, one line to change). GLM 5.3 Flash accepts `response_format` but
 does not enforce a JSON schema, so the app also sends a strict "JSON only"

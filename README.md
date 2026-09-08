@@ -10,12 +10,26 @@ persona sliders. Every generated conversation is in Dutch.
 
 ## Run it
 
-No build step. Open `index.html` in a browser — or serve the folder:
+No build step, but it **must be served over HTTP** — opening `index.html` as a
+`file://` URL makes the browser send `Origin: null`, which OpenRouter's CORS
+rejects, so every turn fails with *"Failed to fetch"*. Serve the folder:
 
 ```bash
-python3 -m http.server 8777
-# then open http://localhost:8777/index.html
+python3 -m http.server 8000
+# then open http://localhost:8000/
 ```
+
+(The page detects `file://` and shows a warning if you forget.)
+
+### Troubleshooting
+
+| Error | Cause / fix |
+|---|---|
+| `Failed to fetch` / `Netwerkfout richting OpenRouter` | Opened as `file://` (see above), no internet, or a network/CSP that blocks `openrouter.ai`. Serve over `http://localhost`. |
+| `AbortSignal object could not be cloned` | Old version in an embedded browser — fixed; pull latest. |
+| `OpenRouter 401` | Bad or expired API key. |
+| `OpenRouter 402` | Out of OpenRouter credits. |
+| `Time-out …` | Provider was slow; click **Beurt opnieuw proberen**. |
 
 ## Configure
 

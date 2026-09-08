@@ -167,6 +167,7 @@
     <label class="field" for="apikey">OpenRouter API-sleutel</label>
     <input type="password" id="apikey" placeholder="sk-or-..." autocomplete="off" spellcheck="false" />
     <div class="warn">⚠️ Let op: de sleutel wordt in de browser opgeslagen (localStorage) en gaat mee in het netwerkverkeer vanuit de client. Alleen acceptabel voor deze interne testtool — nooit publiek deployen.</div>
+    <div class="warn" id="file-warn" hidden>🚫 Je opent dit bestand rechtstreeks (<code>file://</code>). OpenRouter weigert dan de aanvraag (CORS). Serveer de map via HTTP, bijvoorbeeld <code>python3 -m http.server</code> in deze map en open daarna <code>http://localhost:8000</code>.</div>
 
     <div class="btnrow">
       <button class="btn primary" id="btn-start" disabled>Start</button>
@@ -711,7 +712,11 @@ async function callCustomer(systemPrompt){
       }), timeoutMs || 60000);
     } catch(e){
       if(e && /^Time-out:/.test(e.message)) throw e;
-      throw new Error("Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e));
+      const base = "Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e);
+      const hint = location.protocol === "file:"
+        ? " — open dit bestand via een lokale webserver (http://localhost…), niet als file://."
+        : " — controleer je internetverbinding, of dit netwerk/CSP openrouter.ai blokkeert.";
+      throw new Error(base + hint);
     }
     if(!res.ok){
       const txt = await res.text().catch(() => "");
@@ -1124,6 +1129,8 @@ function onRandomize(){
 
 /* ---------- wiring ---------- */
 (function init(){
+  if(location.protocol === "file:") $("file-warn").hidden = false;
+
   // scenario dropdown
   SCENARIOS.forEach(sc => {
     const o = document.createElement("option");

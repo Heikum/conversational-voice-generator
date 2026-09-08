@@ -625,29 +625,62 @@ function resetPersona(){
   personaDlBtn.hidden = true;
 }
 
+const PERSONA_SCENES = [
+  "in een rommelige keuken met de afwas nog hoog opgestapeld op het aanrecht",
+  "aan een keukentafel vol gele post-its en ongeopende blauwe enveloppen",
+  "onderuitgezakt op een doorgezakte bank met een dikke kat pontificaal op schoot",
+  "staand in de bijkeuken naast een wasmachine die luidruchtig centrifugeert",
+  "aan tafel met een half opgegeten bord eten dat koud staat te worden",
+  "in de gang, half in de jas, met één schoen aan, alsof ze net weg wilden",
+];
+const PERSONA_PROPS = [
+  "een dampende mok koffie die op het randje van omvallen staat",
+  "een stroopwafel in de vrije hand, kruimels op het shirt",
+  "een klein blaffend hondje dat omhoogspringt naar de telefoon",
+  "een verfrommelde energierekening stevig in de knuist geklemd",
+  "een tweede bril om de nek terwijl er al één scheef op het hoofd zit",
+  "een kladblok vol driftig doorgestreepte krabbels",
+  "een omgevallen kamerplant met wat aarde op de vloer",
+];
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
 function buildPersonaPrompt(){
   const g = S.groundTruth || {};
   const sl = readSliders();
   const yr = parseInt(String(g.date_of_birth || "").slice(-4), 10);
   const age = isFinite(yr) ? Math.max(18, new Date().getFullYear() - yr) : 45;
-  const mood = sl.mood <= 20 ? "ontspannen en vriendelijk, milde glimlach"
-    : sl.mood <= 50 ? "licht ongeduldig, zakelijke blik"
-    : sl.mood <= 80 ? "duidelijk geïrriteerd, wenkbrauwen gefronst"
-    : "boos en geëscaleerd, vrije hand maakt een geïrriteerd gebaar";
-  const tech = sl.tech <= 20 ? "houdt de telefoon wat onwennig vast, leesbril op het puntje van de neus, tuurt naar het scherm"
-    : sl.tech <= 50 ? "houdt de telefoon gewoon vast, kijkt af en toe zoekend op het scherm"
-    : "gebruikt de telefoon vlot en zelfverzekerd";
-  const focus = sl.intelligence <= 20 ? "wat afwezige, zoekende oogopslag"
-    : sl.intelligence <= 50 ? "aandachtige maar aarzelende uitdrukking"
-    : "heldere, gerichte blik";
+
+  const mood = sl.mood <= 20
+      ? "stralende, véél te enthousiaste grijns, steekt een dikke duim omhoog naar niemand"
+    : sl.mood <= 50
+      ? "overdreven diepe zucht, ogen rollend ten hemel, knijpt in de neusbrug"
+    : sl.mood <= 80
+      ? "rood aangelopen van ergernis, wijsvinger fel in de lucht, mond wijd open middenin een klacht"
+      : "briesend woedend, ader in de nek, half uit de stoel omhoog, vrije arm zwaait wild door de lucht";
+
+  const tech = sl.tech <= 25
+      ? "houdt de smartphone ondersteboven en veel te ver van zich af, priemt met één stevige vinger op het scherm, een ouderwetse draadloze huistelefoon ligt er óók nog naast"
+    : sl.tech <= 60
+      ? "klemt de telefoon met twee handen vast alsof hij elk moment kan ontploffen, tuurt er argwanend naar"
+      : "leunt zelfverzekerd achterover, telefoon losjes tegen het oor, een tweede scherm zichtbaar op de achtergrond";
+
+  const focus = sl.intelligence <= 20
+      ? "compleet de kluts kwijt, mond open, losse papieren waaieren door de lucht, houdt een handleiding ondersteboven vast"
+    : sl.intelligence <= 50
+      ? "aarzelend en lichtelijk paniekerig, kijkt hulpzoekend opzij naar iemand buiten beeld"
+      : "scherp en zelfvoldaan, met de gevraagde gegevens al keurig klaar op een post-it in de hand";
+
   return [
-    "Realistische, spontane smartphone-snapshot in portretverhouding.",
-    "Onderwerp: een gewone Nederlander van ongeveer " + age + " jaar" +
-      (g.name ? " (uitstraling passend bij de naam “" + g.name + "”)" : "") + ",",
-    "thuis aan de keukentafel, aan het bellen met de klantenservice, telefoon aan het oor.",
-    "Uitdrukking: " + mood + "; " + focus + "; " + tech + ".",
-    "Zacht daglicht van een raam, alledaags Nederlands interieur, lichte camera-imperfecties.",
-    "Respectvol en natuurlijk, geen karikatuur of stereotype, fotorealistisch, geen tekst of logo's in beeld."
+    "Overdreven, humoristische candid foto — als een still uit een Nederlandse comedyserie of realityshow.",
+    "Wide-angle close-up met directe on-camera flits, iemand betrapt middenin een gebaar, rauw en niet flatteus.",
+    "Karikaturaal en grappig van toon, maar warm en menselijk; geen kwetsende of discriminerende stereotypen.",
+    "Onderwerp: een doodgewone Nederlander van ongeveer " + age + " jaar" +
+      (g.name ? " (type dat past bij de naam “" + g.name + "”)" : "") + ",",
+    "thuis aan het bellen met de klantenservice, telefoon aan (of half naast) het oor, " + pick(PERSONA_SCENES) + ",",
+    "met " + pick(PERSONA_PROPS) + ".",
+    "Gezicht en houding: " + mood + "; " + focus + "; " + tech + ".",
+    "Rommelig alledaags Nederlands interieur, felle flits, lichte bewegingsonscherpte, echte-telefooncamera-look.",
+    "Fotorealistisch maar sterk overdreven expressief. Geen tekst, ondertitels of logo's in beeld."
   ].join(" ");
 }
 

@@ -690,6 +690,7 @@ async function callCustomer(systemPrompt){
       t = setTimeout(() => reject(new Error(
         "Time-out: het model reageerde niet binnen " + Math.round(ms / 1000) + " seconden.")), ms);
     });
+    promise.catch(() => {});  // if the timeout wins the race, ignore the fetch's later settle
     return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
   }
 
@@ -712,11 +713,11 @@ async function callCustomer(systemPrompt){
       }), timeoutMs || 60000);
     } catch(e){
       if(e && /^Time-out:/.test(e.message)) throw e;
-      const base = "Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e);
+      const detail = "Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e);
       const hint = location.protocol === "file:"
         ? " — open dit bestand via een lokale webserver (http://localhost…), niet als file://."
         : " — controleer je internetverbinding, of dit netwerk/CSP openrouter.ai blokkeert.";
-      throw new Error(base + hint);
+      throw new Error(detail + hint);
     }
     if(!res.ok){
       const txt = await res.text().catch(() => "");
@@ -1180,12 +1181,16 @@ function onRandomize(){
   });
 
   downloadBtn.addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "essent-voicebot-testcase-" + (S.seed || "sessie") + "-" + Date.now() + ".json";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    try {
+      const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "essent-voicebot-testcase-" + (S.seed || "sessie") + "-" + Date.now() + ".json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch(e){
+      toast("Download geblokkeerd — gebruik ‘Kopieer transcript’");
+    }
   });
 
   // initial preview ground truth

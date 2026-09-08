@@ -41,7 +41,19 @@ python3 -m http.server 8000
 | **Stemming** | 0 = calm and friendly · 100 = angry, threatens to escalate |
 | **🎲 Randomize** | Jumps all three sliders to random values — quick way to batch edge cases. |
 | **Forceer edge case** | Adds one curveball instruction to the prompt each turn (wrong digit, changing their mind, background noise, resistance to a question). |
-| **🎭 Genereer klantbeeld** | Optional. Sends a prompt built from the sliders + the generated customer record (approx. age, name) to an image model (`IMAGE_MODEL`, default `google/gemini-2.5-flash-image`, ~$0.04/image, ~10s) and shows an AI impression of the caller. Deliberately over-the-top — a comedy-series / reality-TV still, on-camera flash, caught mid-gesture — with a random scene + prop each time, so it exaggerates the sliders (fuming rage, phone held upside down, papers flying, smug thumbs-up…). Still an illustration, not the real customer. Cleared on New session / Start. If a portrait was generated it is embedded (large base64) in the JSON export; **Bewaar afbeelding** saves it separately. Tune the tone in `buildPersonaPrompt()` / `PERSONA_SCENES` / `PERSONA_PROPS`. |
+
+**Caller card + persona portrait.** The conversation panel opens with a caller
+card: name, approx. age, and the three slider values as chips. On **Start** an
+AI portrait of the caller is generated automatically (no separate button) and
+drops into the card ~10s later, in parallel with the conversation — it never
+blocks it. Click the thumbnail for the full image; **↻ Nieuw beeld** regenerates,
+**⬇︎ Bewaar** saves the PNG. The prompt (`buildPersonaPrompt()` + `PERSONA_SCENES`
+/ `PERSONA_PROPS`) is deliberately over-the-top — a comedy-series / reality-TV
+still, on-camera flash, caught mid-gesture, a random scene + prop each time — so
+it exaggerates the sliders (fuming rage, phone upside down, papers flying, smug
+thumbs-up). An illustration, not the real customer. `IMAGE_MODEL` (default
+`google/gemini-2.5-flash-image`, ~$0.04). If a portrait was made it is embedded
+(large base64) in the JSON export.
 
 The transcript is paced at roughly one line every ~2 seconds (`TURN_GAP_MS` /
 `BOT_READ_MS` in `index.html`) so a viewer can follow the call unfold even when
@@ -52,8 +64,8 @@ the model responds instantly; when the model is slow its latency dominates.
 ▶ on any customer bubble to (re)play just that line. `openai/gpt-audio-mini`
 via OpenRouter, streamed as pcm16 and muxed to WAV in the browser; emotion is
 taken from the Stemming slider. After a session: **🔊 Speel klant af** plays all
-customer lines back to back, **⬇︎ Klantaudio (.wav)** downloads them as one file
-(clips generated on demand, ~1–2s each, ~$0.002/line with the mini model).
+customer lines back to back (**🔊 Speel af**), **⬇︎ .wav** downloads them as one
+file (clips generated on demand, ~1–2s each, ~$0.002/line with the mini model).
 Model/voice are `VOICE_MODEL` / `VOICE_NAME` in `index.html`. Auto-play mid-call
 can be blocked by the browser's autoplay policy — the ▶ buttons always work.
 

@@ -661,11 +661,23 @@ function normalizeReply(p){
   };
 }
 
+// Bare GET, a CORS "simple request" (no custom headers, no preflight). Used to
+// tell "OpenRouter is unreachable from this network" apart from "the POST/preflight
+// is being blocked".
+async function probeOpenRouter(){
+  try {
+    const r = await fetch("https://openrouter.ai/api/v1/models", { method: "GET" });
+    return r.ok ? "bereikbaar (models-endpoint gaf " + r.status + ")"
+                : "antwoordde met HTTP " + r.status;
+  } catch(e){
+    return "óók onbereikbaar (" + (e && e.message ? e.message : e) + ")";
+  }
+}
+
 async function callCustomer(systemPrompt){
   const key = keyInput.value.trim();
   if(!key) throw new Error("Geen OpenRouter API-sleutel ingevoerd.");
   const model = S.model || DEFAULT_MODEL;
-  const referer = location.href.startsWith("http") ? location.origin : "https://essent-voicebot-testtool.local";
 
   const base = {
     model,
@@ -701,23 +713,27 @@ async function callCustomer(systemPrompt){
 
     let res;
     try {
+      // Only Authorization + Content-Type — keeps this a minimal CORS preflight.
+      // OpenRouter's optional HTTP-Referer / X-Title ranking headers are omitted
+      // on purpose: some mobile/proxy networks and privacy extensions block the
+      // preflight when extra custom headers are present.
       res = await withTimeout(fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + key,
           "Content-Type": "application/json",
-          "HTTP-Referer": referer,
-          "X-Title": "Essent Voicebot Testcase Generator",
         },
         body: JSON.stringify(body),
       }), timeoutMs || 60000);
     } catch(e){
       if(e && /^Time-out:/.test(e.message)) throw e;
-      const detail = "Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e);
-      const hint = location.protocol === "file:"
-        ? " — open dit bestand via een lokale webserver (http://localhost…), niet als file://."
-        : " — controleer je internetverbinding, of dit netwerk/CSP openrouter.ai blokkeert.";
-      throw new Error(detail + hint);
+      if(e && /^OpenRouter onbereikbaar:/.test(e.message)) throw e;
+      const probe = await probeOpenRouter();
+      throw new Error("OpenRouter onbereikbaar: " + (e && e.message ? e.message : e) +
+        ". Test zonder auth: openrouter.ai is " + probe +
+        (location.protocol === "file:"
+          ? ". Open dit bestand via http://localhost…, niet als file://."
+          : ". Waarschijnlijk blokkeert dit netwerk (hotspot/VPN/proxy) of een browser-extensie/ad-blocker de API. Probeer een ander netwerk of schakel shields/extensies uit."));
     }
     if(!res.ok){
       const txt = await res.text().catch(() => "");
@@ -745,7 +761,11 @@ async function callCustomer(systemPrompt){
     content = r.content; finish = r.finish; parsed = parseLoose(content);
   } catch(e){ lastErr = e; }
 
-  if(!parsed){
+  // Only retry with json_schema if the first call actually *responded* but the
+  // text didn't parse. A network/timeout/HTTP failure won't be fixed by a second
+  // identical request, and re-running it just repeats the connectivity probe.
+  const firstCallReachedServer = !lastErr || /^(OpenRouter \d|Kon geen geldige JSON)/.test(lastErr.message || "");
+  if(!parsed && firstCallReachedServer){
     try {
       const r = await doFetch(true, 40000);
       content = r.content; finish = r.finish; parsed = parseLoose(content) || parsed;

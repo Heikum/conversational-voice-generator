@@ -25,7 +25,7 @@ python3 -m http.server 8000
 
 | Error | Cause / fix |
 |---|---|
-| `Failed to fetch` / `Netwerkfout richting OpenRouter` | Opened as `file://` (see above), no internet, or a network/CSP that blocks `openrouter.ai`. Serve over `http://localhost`. |
+| `OpenRouter onbereikbaar` / `Failed to fetch` | Opened as `file://` (see above), or the network blocks the API. The error now also shows a no-auth probe of `openrouter.ai`: if that is "óók onbereikbaar", the whole domain is blocked here — common on mobile hotspots, VPNs, corporate proxies, and privacy extensions / ad-blockers (uBlock, Brave Shields). Try a normal Wi-Fi connection, disable shields/extensions for `localhost`, or use a different browser. The request already sends only `Authorization` + `Content-Type` (no extra headers) to keep the CORS preflight minimal. |
 | `AbortSignal object could not be cloned` | Old version in an embedded browser — fixed; pull latest. |
 | `OpenRouter 401` | Bad or expired API key. |
 | `OpenRouter 402` | Out of OpenRouter credits. |

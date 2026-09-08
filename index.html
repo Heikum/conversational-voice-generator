@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Essent · Voicebot Testcase-generator</title>
+<style>
+  :root{
+    --bg:#f5f4f2; --card:#ffffff; --ink:#1b1b1b; --ink-soft:#5b5b5b;
+    --line:#e7e5e1; --essent-red:#e60167; --essent-red-deep:#c1044f;
+    --bot-bubble:#eceef0; --radius:16px; --shadow:0 2px 12px rgba(20,20,20,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  header.top{
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    padding:18px 26px; background:var(--card); border-bottom:1px solid var(--line);
+  }
+  .wordmark{font-weight:800; font-size:26px; color:var(--essent-red); letter-spacing:-.5px}
+  header.top .sub{color:var(--ink-soft); font-size:14px}
+  main{
+    display:grid; grid-template-columns:390px 1fr; gap:22px;
+    padding:22px 26px; max-width:1240px; margin:0 auto;
+  }
+  @media(max-width:920px){ main{grid-template-columns:1fr} }
+  .card{background:var(--card); border-radius:22px; box-shadow:var(--shadow); padding:22px}
+  .card h2{margin:0 0 6px; font-size:17px}
+  .card .lede{margin:0 0 12px; font-size:13px; color:var(--ink-soft)}
+
+  label.field{display:block; font-size:13px; font-weight:700; margin:16px 0 6px; color:var(--ink-soft)}
+  .slider-row{margin:16px 0}
+  .slider-row .srtop{display:flex; justify-content:space-between; align-items:baseline; font-size:13px; font-weight:700}
+  .slider-row .val{color:var(--essent-red); font-variant-numeric:tabular-nums; font-size:15px}
+  .slider-row .hint{font-size:12px; color:var(--ink-soft); font-weight:400; margin-top:2px}
+  input[type=range]{width:100%; accent-color:var(--essent-red); margin-top:8px}
+  input[type=text],input[type=password],select{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:12px;
+    font:inherit; background:#fbfbfa; color:var(--ink);
+  }
+  input:focus,select:focus{outline:2px solid var(--essent-red); outline-offset:1px}
+  .row2{display:flex; gap:10px; align-items:center}
+  .row2 input{flex:1}
+
+  .btn{border:0; border-radius:999px; padding:11px 18px; font:inherit; font-weight:700; cursor:pointer}
+  .btn.primary{background:var(--essent-red-deep); color:#fff}
+  .btn.primary:disabled{background:#dcc0c6; cursor:not-allowed}
+  .btn.ghost{background:#f0efec; color:var(--ink)}
+  .btn.ghost:disabled{opacity:.5; cursor:not-allowed}
+  .btn.small{padding:8px 14px; font-size:13px}
+  .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px}
+
+  .warn{
+    margin-top:8px; font-size:12px; color:#8a5a00; background:#fff4e0;
+    border:1px solid #ffe0a8; padding:8px 10px; border-radius:10px;
+  }
+  .chk{display:flex; gap:8px; align-items:flex-start; margin-top:14px; font-size:13px}
+  .chk input{margin-top:3px}
+
+  .status-strip{margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:13px}
+  .status-strip .sline{display:flex; justify-content:space-between; padding:3px 0; gap:12px}
+  .status-strip .sline span:last-child{font-weight:700; text-align:right}
+  .pill{display:inline-block; padding:3px 11px; border-radius:999px; font-size:12px; font-weight:800}
+  .pill.idle{background:#ececec; color:#555}
+  .pill.running{background:#e5edff; color:#2a49b3}
+  .pill.complete{background:#e3f5e9; color:#1c7a43}
+  .pill.failed{background:#fde8ec; color:#b3001f}
+  .pill.ended{background:#fff2df; color:#8a5a00}
+
+  .meta-log{margin-top:12px; font-size:12px; color:var(--ink-soft); max-height:150px; overflow:auto;
+    background:#fbfbfa; border:1px solid var(--line); border-radius:12px; padding:8px 10px}
+  .meta-log div{padding:1px 0}
+  .meta-log:empty{display:none}
+
+  .conv-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+  #transcript-wrap{
+    height:60vh; min-height:440px; overflow-y:auto; padding:6px 4px;
+    background:#fbfbfa; border:1px solid var(--line); border-radius:16px;
+  }
+  #transcript{display:flex; flex-direction:column; padding:8px 10px}
+  .bubble{
+    max-width:78%; padding:11px 15px; border-radius:16px; margin:9px 0;
+    white-space:pre-wrap; box-shadow:var(--shadow); word-wrap:break-word;
+  }
+  .bubble .who{display:block; font-size:11px; font-weight:800; letter-spacing:.4px;
+    text-transform:uppercase; opacity:.6; margin-bottom:3px}
+  .bubble .t{display:block; font-size:11px; opacity:.5; margin-top:6px}
+  .bubble.bot{background:var(--bot-bubble); border-bottom-left-radius:5px; align-self:flex-start}
+  .bubble.customer{background:var(--essent-red-deep); color:#fff; border-bottom-right-radius:5px; align-self:flex-end}
+  .bubble.err{background:#fde8ec; color:#8a0018; border:1px solid #f4b8c4; align-self:flex-start; max-width:92%}
+  .bubble.err button{margin-top:8px}
+
+  .thinking{align-self:flex-start; background:var(--bot-bubble); border-radius:16px;
+    border-bottom-left-radius:5px; padding:12px 16px; margin:9px 0}
+  .dots{display:inline-flex; gap:5px}
+  .dots i{width:7px; height:7px; border-radius:50%; background:#9aa0a6; display:block; animation:bnc 1.2s infinite}
+  .dots i:nth-child(2){animation-delay:.15s}
+  .dots i:nth-child(3){animation-delay:.3s}
+  @keyframes bnc{0%,60%,100%{opacity:.3; transform:translateY(0)} 30%{opacity:1; transform:translateY(-4px)}}
+
+  #summary:empty{display:none}
+  .summary{margin:14px 0 4px; padding:14px 16px; border:1px dashed var(--essent-red);
+    border-radius:14px; background:#fff7f8; font-size:13px}
+  .summary h3{margin:0 0 8px; font-size:14px}
+  .summary table{width:100%; border-collapse:collapse}
+  .summary td{padding:3px 4px; border-bottom:1px solid #f0d6dc}
+  .summary td:first-child{color:var(--ink-soft); width:46%}
+
+  details.gt{margin-top:14px; background:#fbfbfa; border:1px solid var(--line); border-radius:12px; padding:10px 14px}
+  details.gt summary{cursor:pointer; font-weight:800; font-size:13px}
+  table.gt{width:100%; border-collapse:collapse; margin-top:8px; font-size:13px}
+  table.gt td{padding:4px 6px; border-bottom:1px solid var(--line)}
+  table.gt td:first-child{color:var(--ink-soft); width:46%}
+
+  .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+    background:#1b1b1b; color:#fff; padding:10px 18px; border-radius:999px; font-size:13px;
+    opacity:0; transition:opacity .2s; pointer-events:none; z-index:50;
+  }
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="wordmark">essent</span>
+  <span class="sub">Voicebot testcase-generator — interne testtool</span>
+</header>
+
+<main>
+  <!-- ============ CONFIG PANEL ============ -->
+  <section class="card" id="config">
+    <h2>Sessie-instellingen</h2>
+    <p class="lede">Zet de persona, druk op Start en bekijk hoe het gesimuleerde gesprek zich ontvouwt. De bot volgt een vast script; de klant wordt gespeeld door GLM 5.3 Flash (via OpenRouter).</p>
+
+    <label class="field" for="scenario">Scenario</label>
+    <select id="scenario"></select>
+
+    <div class="slider-row">
+      <div class="srtop"><span>Klantintelligentie</span><span class="val" id="v-intelligence">55</span></div>
+      <input type="range" id="s-intelligence" min="0" max="100" value="55" />
+      <div class="hint">0 = worstelt met simpele instructies, verwisselt cijfers · 100 = scherp en efficiënt</div>
+    </div>
+    <div class="slider-row">
+      <div class="srtop"><span>Tech-vaardigheid</span><span class="val" id="v-tech">55</span></div>
+      <input type="range" id="s-tech" min="0" max="100" value="55" />
+      <div class="hint">0 = snapt "IBAN" of nut van postcode niet, friemelt met de telefoon · 100 = weet precies wat gevraagd wordt</div>
+    </div>
+    <div class="slider-row">
+      <div class="srtop"><span>Stemming</span><span class="val" id="v-mood">25</span></div>
+      <input type="range" id="s-mood" min="0" max="100" value="25" />
+      <div class="hint">0 = rustig en vriendelijk · 100 = zeer geïrriteerd/boos</div>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn ghost small" id="btn-randomize">🎲 Randomiseer sliders</button>
+    </div>
+
+    <div class="chk">
+      <input type="checkbox" id="edge" />
+      <label for="edge">Forceer edge case — voegt per beurt één curveball-instructie toe aan de prompt (verkeerd cijfer, van gedachten veranderen, achtergrondgeluid, weerstand…).</label>
+    </div>
+
+    <label class="field" for="apikey">OpenRouter API-sleutel</label>
+    <input type="password" id="apikey" placeholder="sk-or-..." autocomplete="off" spellcheck="false" />
+    <div class="warn">⚠️ Let op: de sleutel wordt in de browser opgeslagen (localStorage) en gaat mee in het netwerkverkeer vanuit de client. Alleen acceptabel voor deze interne testtool — nooit publiek deployen.</div>
+
+    <div class="btnrow">
+      <button class="btn primary" id="btn-start" disabled>Start</button>
+      <button class="btn ghost" id="btn-new">Nieuwe sessie</button>
+    </div>
+
+    <div class="status-strip">
+      <div class="sline"><span>Status</span><span><span class="pill idle" id="pill">Nog niet gestart</span></span></div>
+      <div class="sline"><span>Huidige stap</span><span id="v-step">—</span></div>
+      <div class="sline"><span>Verificatie</span><span id="v-ver">—</span></div>
+      <div class="sline"><span>Nieuw bedrag opgeslagen</span><span id="v-saved">—</span></div>
+    </div>
+    <div class="meta-log" id="metalog"></div>
+  </section>
+
+  <!-- ============ CONVERSATION PANEL ============ -->
+  <section class="card" id="conversation">
+    <div class="conv-head">
+      <h2>Gesprek</h2>
+    </div>
+    <div id="transcript-wrap">
+      <div id="transcript">
+        <div class="thinking" id="thinking" hidden><span class="dots"><i></i><i></i><i></i></span></div>
+      </div>
+    </div>
+
+    <div id="summary"></div>
+
+    <details class="gt" id="gtpanel">
+      <summary>Antwoordsleutel (ground-truth klantrecord)</summary>
+      <table class="gt" id="gttable"></table>
+    </details>
+
+    <div class="export-row">
+      <button class="btn ghost small" id="btn-copy" disabled>Kopieer transcript</button>
+      <button class="btn ghost small" id="btn-download" disabled>Download transcript (.json)</button>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<!-- ================= DATA / CONFIG ================= -->
+<script>
+"use strict";
+
+const DEFAULT_MODEL = "z-ai/glm-5.3-flash";
+const DEFAULTS = { intelligence:55, tech:55, mood:25 };
+
+/* ---- persona descriptor bands ---- */
+const DESCRIPTORS = {
+  intelligence: [
+    [0,20,  "begrijpt eenvoudige instructies nauwelijks, verwisselt cijfers, moet alles herhaald krijgen"],
+    [21,50, "volgt instructies langzaam, raakt af en toe in de war, heeft soms herhaling nodig"],
+    [51,80, "begrijpt de vragen goed en antwoordt meestal correct en to-the-point"],
+    [81,100,"scherp, antwoordt precies, efficiënt en zonder omhaal"],
+  ],
+  tech: [
+    [0,20,  "weet niet wat 'IBAN' betekent, snapt niet waarom een postcode nodig is, friemelt met de telefoon"],
+    [21,50, "kent de termen vaag maar twijfelt, vraagt af en toe om uitleg"],
+    [51,80, "begrijpt de gevraagde gegevens zonder veel uitleg"],
+    [81,100,"weet precies wat er gevraagd wordt en levert het meteen correct aan"],
+  ],
+  mood: [
+    [0,20,  "rustig en beleefd"],
+    [21,50, "een beetje ongeduldig"],
+    [51,80, "merkbaar geïrriteerd, kort aangebonden"],
+    [81,100,"boos, dreigt op te hangen of te escaleren"],
+  ],
+};
+function desc(kind, v){
+  for(const [lo,hi,t] of DESCRIPTORS[kind]) if(v>=lo && v<=hi) return t;
+  return "";
+}
+
+/* ---- fixed bot lines shared across steps ---- */
+const LINES = {
+  repeat:   "Sorry, dat heb ik niet goed verstaan, kunt u dat herhalen?",
+  redirect: "Dat begrijp ik, maar laten we eerst dit onderdeel afronden.",
+  authFail: "Helaas is de verificatie niet gelukt. Om veiligheidsredenen kan ik u nu niet verder helpen — ik verbind u door met een collega. Een prettige dag verder.",
+  customerEnded: "Ik merk dat u het gesprek wilt beëindigen. Ik sluit de oproep af. U kunt ons altijd opnieuw bellen. Een prettige dag verder.",
+};
+const FIELD_LABEL = {
+  date_of_birth: "Geboortedatum",
+  postcode: "Postcode",
+  iban_last3: "IBAN (laatste 3 cijfers)",
+};
+
+/* ---- edge-case nudges (used when "Forceer edge case" is on) ---- */
+const EDGE_CASES = [
+  "Geef bewust één verkeerd cijfer door en corrigeer jezelf pas als de medewerker doorvraagt.",
+  "Verander halverwege deze beurt van gedachten over het bedrag dat je wilt.",
+  "Verwijs naar achtergrondgeluid of een excuus (huilend kind, deurbel) en vraag om herhaling.",
+  "Bied weerstand: vraag geïrriteerd waarom deze vraag nodig is voordat je antwoordt.",
+  "Geef een dubbelzinnig, half ja / half nee antwoord op de bevestiging.",
+  "Noem het bedrag op een verwarrende manier (bijvoorbeeld per jaar in plaats van per maand).",
+];
+
+/* ---- scenarios: data, not hardcoded logic. Engine dispatches on step.type only. ---- */
+const SCENARIOS = [{
+  id: "budget_bill_change",
+  label: "Maandbedrag wijzigen",
+  authFields: ["date_of_birth", "postcode", "iban_last3"],
+  steps: [
+    { id:"greeting", type:"say",
+      line:"Goedemiddag, u spreekt met de digitale assistent van Essent. Ik help u met het wijzigen van uw maandbedrag. Ik stel u eerst een paar vragen om u te verifiëren." },
+
+    { id:"auth_dob",      type:"auth", field:"date_of_birth", question:"Wat is uw geboortedatum?",
+      retryLine:LINES.repeat, failLine:LINES.authFail },
+    { id:"auth_postcode", type:"auth", field:"postcode",      question:"Wat is uw postcode?",
+      retryLine:LINES.repeat, failLine:LINES.authFail },
+    { id:"auth_iban",     type:"auth", field:"iban_last3",    question:"Kunt u mij de laatste drie cijfers van uw IBAN-rekeningnummer geven?",
+      retryLine:LINES.repeat, failLine:LINES.authFail },
+
+    { id:"confirm_old", type:"confirm_old_amount",
+      question:"Dank u wel, u bent geverifieerd. Volgens onze gegevens is uw huidige maandbedrag €{current_monthly_amount}. Klopt dat?" },
+
+    { id:"ask_new", type:"ask_number",
+      question:"Naar welk bedrag wilt u uw maandbedrag wijzigen?" },
+
+    { id:"confirm_new", type:"confirm_new_amount",
+      question:"Ik herhaal het even: u wilt uw maandbedrag wijzigen naar €{new_amount}. Klopt dat? Zegt u alstublieft duidelijk ja of nee." },
+
+    { id:"socratic", type:"socratic" },
+
+    { id:"closing", type:"say",
+      line:"Dank u wel voor het doorgeven. Uw aanvraag is genoteerd en wordt verwerkt. Een prettige dag verder!" },
+  ],
+  socraticQuestionBank: [
+    "Is uw energieverbruik het afgelopen jaar veranderd, bijvoorbeeld door een verbouwing of een extra gezinslid?",
+    "Bent u zich ervan bewust dat een te laag maandbedrag kan leiden tot een naheffing aan het eind van het jaar?",
+    "Heeft u zonnepanelen of andere apparatuur die uw verbruik beïnvloedt?",
+    "Wilt u dat wij dit bedrag jaarlijks automatisch laten aanpassen op basis van uw verbruik?",
+    "Heeft u overwogen om over te stappen op een ander tarief in plaats van het maandbedrag aan te passen?",
+    "Verwacht u de komende maanden meer thuis te zijn, bijvoorbeeld door thuiswerken?",
+  ],
+  socraticCount: { min:3, max:5 },
+}];
+
+/* ---- seeded RNG (xmur3 + mulberry32) so a seed reproduces the scenario setup ---- */
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i=0;i<str.length;i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function(){
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  };
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeRng(seed){ const s = xmur3(String(seed)); return mulberry32(s()); }
+
+function shuffle(arr, rng){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(rng() * (i+1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---- ground-truth customer record (fresh every session) ---- */
+const FIRST = ["Johan","Anouk","Pieter","Fatima","Willem","Sanne","Ahmed","Marieke","Ravi","Lotte","Kees","Julia","Bram","Emma","Dirk","Noor","Hendrik","Yasmin"];
+const LAST  = ["de Vries","Jansen","Bakker","van Dijk","Visser","Smit","Meijer","de Boer","Mulder","Bos","Vos","Peters","Hendriks","van Leeuwen","El Amrani","Kok","Willems","Prins"];
+
+function randGroundTruth(rng){
+  const pick = arr => arr[Math.floor(rng() * arr.length)];
+  const ri = (lo,hi) => lo + Math.floor(rng() * (hi - lo + 1));
+  const pad = (n,l) => String(n).padStart(l, "0");
+  const letter = () => String.fromCharCode(65 + Math.floor(rng() * 26));
+  const year = ri(1945, 2004), month = ri(1, 12);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const day = ri(1, daysInMonth);
+  return {
+    name: pick(FIRST) + " " + pick(LAST),
+    date_of_birth: pad(day,2) + "-" + pad(month,2) + "-" + year,
+    postcode: String(ri(1000,9999)) + letter() + letter(),
+    iban_last3: pad(ri(0,999), 3),
+    current_monthly_amount: ri(80, 260),
+    recent_usage_trend: pick(["increased","decreased","stable"]),
+    household_change: rng() < 0.5,
+    has_solar_panels: rng() < 0.4,
+  };
+}
+
+/* ---- normalization / parsing helpers ---- */
+function normalizeField(field, val){
+  if(val == null) return null;
+  const raw = String(val);
+  if(field === "date_of_birth"){
+    const parts = raw.match(/\d+/g);
+    if(parts && parts.length >= 3){
+      let [d,m,y] = parts;
+      if(y.length === 2) y = (parseInt(y,10) > 30 ? "19" : "20") + y;
+      return d.padStart(2,"0") + m.padStart(2,"0") + y.padStart(4,"0");
+    }
+    return raw.replace(/\D/g,"");
+  }
+  if(field === "postcode") return raw.toUpperCase().replace(/[^0-9A-Z]/g,"");
+  if(field === "iban_last3"){ const d = raw.replace(/\D/g,""); return d.slice(-3); }
+  return raw.trim().toLowerCase();
+}
+function parseAmount(val){
+  if(val == null) return null;
+  let s = String(val).replace(/[^\d.,]/g,"");
+  s = s.replace(/\.(?=\d{3}(\D|$))/g,"");   // strip thousands dots
+  s = s.replace(",", ".");
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+function detectYesNo(text){
+  const t = " " + String(text||"").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g," ").replace(/\s+/g," ") + " ";
+  const noHit  = /\b(nee|neen|verkeerd|fout|niet|geen|onjuist)\b/.test(t);
+  const yesHit = /\b(ja|jazeker|jawel|klopt|correct|prima|akkoord|inderdaad|zeker|goed)\b/.test(t);
+  if(yesHit && !noHit) return "yes";
+  if(noHit && !yesHit) return "no";
+  if(yesHit && noHit)  return /\b(niet|nee|neen)\b/.test(t) ? "no" : "yes";
+  return null;
+}
+function truthy(v){ return v === true || v === "true" || v === 1; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+</script>
+
+<!-- ================= ENGINE + UI ================= -->
+<script>
+"use strict";
+
+/* ---------- element refs ---------- */
+const $ = id => document.getElementById(id);
+const scenarioSel = $("scenario");
+const sliders = { intelligence:$("s-intelligence"), tech:$("s-tech"), mood:$("s-mood") };
+const sliderVals = { intelligence:$("v-intelligence"), tech:$("v-tech"), mood:$("v-mood") };
+const edgeChk = $("edge");
+const keyInput = $("apikey");
+const startBtn = $("btn-start");
+const newBtn = $("btn-new");
+const randBtn = $("btn-randomize");
+const copyBtn = $("btn-copy");
+const downloadBtn = $("btn-download");
+const pillEl = $("pill");
+const stepValEl = $("v-step");
+const verValEl = $("v-ver");
+const savedValEl = $("v-saved");
+const metaLogEl = $("metalog");
+const transcriptEl = $("transcript");
+const thinkingEl = $("thinking");
+const wrapEl = $("transcript-wrap");
+const summaryEl = $("summary");
+const gtTableEl = $("gttable");
+const toastEl = $("toast");
+
+/* ---------- module state ---------- */
+let scenario = SCENARIOS[0];
+let rng = makeRng("preview");
+let GEN = 0;
+let timer = null;
+let S = freshSession();
+let E = freshEngine();
+
+function freshSession(){
+  return {
+    scenarioId:null, seed:null, model:DEFAULT_MODEL, forceEdge:false,
+    sliders:{...DEFAULTS}, groundTruth:null,
+    transcript:[], metaLog:[],
+    verification:null, newAmount:null, saved:false, savedAt:null,
+    status:"idle", startedAt:null, endedAt:null,
+  };
+}
+function freshEngine(){
+  return {
+    gen:0, running:false, stepIndex:0,
+    attempts:0, repeats:0, redirects:0, newAmountRounds:0,
+    pendingPrefix:null, _retry:null, _sRepeated:false,
+    socraticInit:false, socraticQueue:[], socraticIdx:0, socraticAnswers:[],
+  };
+}
+
+/* ---------- persona descriptors bundle (for prompt + export) ---------- */
+function sliderDescriptors(sl){
+  return {
+    intelligence: desc("intelligence", sl.intelligence),
+    tech: desc("tech", sl.tech),
+    mood: desc("mood", sl.mood),
+  };
+}
+
+/* ---------- template fill ---------- */
+function fill(str){
+  return String(str)
+    .replace(/\{current_monthly_amount\}/g, S.groundTruth ? S.groundTruth.current_monthly_amount : "—")
+    .replace(/\{new_amount\}/g, S.newAmount != null ? S.newAmount : "—");
+}
+
+/* ---------- transcript rendering ---------- */
+function fmtTime(iso){ try { return new Date(iso).toLocaleTimeString("nl-NL"); } catch(e){ return ""; } }
+
+function appendBubble(cls, who, text, iso){
+  const el = document.createElement("div");
+  el.className = "bubble " + cls;
+  const w = document.createElement("span"); w.className = "who"; w.textContent = who;
+  const c = document.createElement("span"); c.className = "c"; c.textContent = text;
+  const s = document.createElement("span"); s.className = "t"; s.textContent = fmtTime(iso);
+  el.append(w, c, s);
+  transcriptEl.insertBefore(el, thinkingEl);
+  scrollBottom();
+  return el;
+}
+function botSay(text){
+  const ts = new Date().toISOString();
+  S.transcript.push({ role:"bot", text, ts });
+  appendBubble("bot", "Bot · Essent", text, ts);
+}
+function customerSay(text){
+  const ts = new Date().toISOString();
+  S.transcript.push({ role:"customer", text, ts });
+  appendBubble("customer", "Klant", text, ts);
+}
+function renderError(err){
+  const el = document.createElement("div");
+  el.className = "bubble err";
+  el.innerHTML = "<span class='who'>Fout</span><span class='c'>" +
+    escapeHtml(String(err && err.message ? err.message : err)) + "</span>";
+  const btn = document.createElement("button");
+  btn.className = "btn ghost small";
+  btn.textContent = "Beurt opnieuw proberen";
+  btn.onclick = () => { el.remove(); runStep(); };
+  el.appendChild(btn);
+  transcriptEl.insertBefore(el, thinkingEl);
+  scrollBottom();
+  S.status = "error";
+  updateStatus();
+}
+function showThinking(on){ thinkingEl.hidden = !on; if(on) scrollBottom(); }
+function scrollBottom(){ wrapEl.scrollTop = wrapEl.scrollHeight; }
+function clearTranscript(){
+  [...transcriptEl.querySelectorAll(".bubble")].forEach(n => n.remove());
+  summaryEl.innerHTML = "";
+  showThinking(false);
+}
+function logMeta(msg){
+  const ts = fmtTime(new Date().toISOString());
+  S.metaLog.push("[" + ts + "] " + msg);
+  const d = document.createElement("div");
+  d.textContent = "[" + ts + "] " + msg;
+  metaLogEl.appendChild(d);
+  metaLogEl.scrollTop = metaLogEl.scrollHeight;
+}
+
+/* ---------- status strip ---------- */
+function stepLabel(step){
+  if(!step) return "afronden";
+  switch(step.type){
+    case "say": return step.id === "greeting" ? "Begroeting" : "Afsluiting";
+    case "auth": return "Verificatie · " + FIELD_LABEL[step.field];
+    case "confirm_old_amount": return "Huidig bedrag bevestigen";
+    case "ask_number": return "Nieuw bedrag vragen";
+    case "confirm_new_amount": return "Nieuw bedrag bevestigen";
+    case "socratic": return "Socratische vragen (" + (E.socraticIdx + 1) + "/" + (E.socraticQueue.length || "?") + ")";
+    default: return step.type;
+  }
+}
+function updateStatus(){
+  const map = {
+    idle:["idle","Nog niet gestart"], running:["running","Bezig…"],
+    complete:["complete","Voltooid"], failed:["failed","Verificatie mislukt"],
+    ended_by_customer:["ended","Klant hing op"], error:["failed","Fout — kan hervatten"],
+  };
+  const [cls, label] = map[S.status] || map.idle;
+  pillEl.className = "pill " + cls;
+  pillEl.textContent = label;
+  stepValEl.textContent = S.status === "idle" ? "—" : stepLabel(scenario.steps[E.stepIndex]);
+  verValEl.textContent = S.verification === true ? "geslaagd" : S.verification === false ? "mislukt" : "—";
+  savedValEl.textContent = S.saved ? ("ja — €" + S.newAmount)
+    : (S.newAmount != null ? "nee (bedrag: €" + S.newAmount + ")" : "—");
+}
+
+/* ---------- ground-truth panel ---------- */
+function renderGroundTruth(){
+  const g = S.groundTruth;
+  if(!g){ gtTableEl.innerHTML = ""; return; }
+  const trendNL = { increased:"gestegen", decreased:"gedaald", stable:"stabiel" };
+  const rows = [
+    ["Naam (alleen flavor)", g.name],
+    ["Geboortedatum", g.date_of_birth],
+    ["Postcode", g.postcode],
+    ["IBAN — laatste 3 cijfers", g.iban_last3],
+    ["Huidig maandbedrag", "€" + g.current_monthly_amount],
+    ["Verbruikstrend afgelopen jaar", trendNL[g.recent_usage_trend] || g.recent_usage_trend],
+    ["Verandering in huishouden", g.household_change ? "ja" : "nee"],
+    ["Zonnepanelen", g.has_solar_panels ? "ja" : "nee"],
+  ];
+  gtTableEl.innerHTML = rows.map(r =>
+    "<tr><td>" + escapeHtml(r[0]) + "</td><td>" + escapeHtml(String(r[1])) + "</td></tr>").join("");
+}
+
+/* ---------- system prompt ---------- */
+function buildSystemPrompt(step, botQuestion){
+  const g = S.groundTruth, sl = S.sliders;
+  const history = S.transcript
+    .map(t => (t.role === "bot" ? "Medewerker" : "Klant") + ": " + t.text)
+    .join("\n");
+
+  let p =
+`Je speelt een klant die belt met de klantenservice van een Nederlands energiebedrijf (Essent) om zijn/haar maandbedrag (voorschotbedrag) te wijzigen. Dit is een telefoongesprek, dus je antwoordt kort en in gesproken spreektaal.
+
+Persoonlijkheid (baseer je toon en gedrag hierop):
+- Intelligentie/begripsniveau: ${sl.intelligence}/100 — ${desc("intelligence", sl.intelligence)}
+- Digitale/technische vaardigheid: ${sl.tech}/100 — ${desc("tech", sl.tech)}
+- Stemming: ${sl.mood}/100 — ${desc("mood", sl.mood)}
+
+Dit weet je (je echte gegevens). Je kunt je hier per ongeluk in vergissen: hoe lager je intelligentie en hoe hoger je irritatie, hoe groter de kans dat je een cijfer verwisselt, iets verkeerd zegt of afgeleid raakt.
+- Naam: ${g.name}
+- Geboortedatum: ${g.date_of_birth}
+- Postcode: ${g.postcode}
+- Laatste 3 cijfers IBAN: ${g.iban_last3}
+- Huidig maandbedrag: €${g.current_monthly_amount}
+- Verbruikstrend afgelopen jaar: ${g.recent_usage_trend}
+- Verandering in huishouden: ${g.household_change ? "ja" : "nee"}
+- Zonnepanelen: ${g.has_solar_panels ? "ja" : "nee"}
+
+De medewerker vraagt je nu het volgende: "${botQuestion}"
+
+Gespreksgeschiedenis tot nu toe:
+${history || "(nog geen gesprek)"}
+
+Antwoord alleen als de klant, in het Nederlands, in de stijl die past bij je persoonlijkheid. Kies zelf 'u' of 'je' op basis van je personage. Blijf in je rol en geef niet meer informatie dan gevraagd, tenzij je personage dat zou doen.
+
+Geef daarna UITSLUITEND één geldig JSON-object terug — geen uitleg, geen markdown, geen tekst eromheen — met exact deze velden:
+{
+  "spoken_reply": "string — je natuurlijke, gesproken Nederlandse antwoord (zin of zinnen)",
+  "provided_value": "string of null — genormaliseerde waarde voor het gevraagde veld indien van toepassing (geboortedatum als DD-MM-JJJJ, postcode als 1234AB, IBAN als 3 cijfers, bedrag als getal in euro's); null als je in deze beurt geen concrete waarde geeft",
+  "wants_repeat": "boolean — true als je vraagt om herhaling of het niet verstond",
+  "off_topic": "boolean — true als je antwoord afdwaalt van wat gevraagd werd",
+  "wants_to_end_call": "boolean — true als je wilt ophangen of het gesprek wilt stoppen"
+}`;
+
+  if(S.forceEdge){
+    p += "\n\nEXTRA INSTRUCTIE VOOR DEZE BEURT (edge case): " + EDGE_CASES[Math.floor(rng() * EDGE_CASES.length)];
+  }
+  return p;
+}
+
+/* ---------- OpenRouter call: one per customer turn ---------- */
+const REPLY_SCHEMA = {
+  name: "customer_reply",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["spoken_reply","provided_value","wants_repeat","off_topic","wants_to_end_call"],
+    properties: {
+      spoken_reply:      { type: "string" },
+      provided_value:    { type: ["string","null"] },
+      wants_repeat:      { type: "boolean" },
+      off_topic:         { type: "boolean" },
+      wants_to_end_call: { type: "boolean" },
+    },
+  },
+};
+
+function parseLoose(str){
+  if(!str) return null;
+  let s = String(str)
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")   // some GLM builds emit a reasoning block
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/,"")
+    .trim();
+  try { return JSON.parse(s); } catch(e){}
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if(a >= 0 && b > a){ try { return JSON.parse(s.slice(a, b+1)); } catch(e){} }
+  return null;
+}
+function normalizeReply(p){
+  return {
+    spoken_reply: (typeof p.spoken_reply === "string" && p.spoken_reply.trim()) ? p.spoken_reply.trim() : "(geen antwoord)",
+    provided_value: (p.provided_value === undefined || p.provided_value === null) ? null : String(p.provided_value),
+    wants_repeat: truthy(p.wants_repeat),
+    off_topic: truthy(p.off_topic),
+    wants_to_end_call: truthy(p.wants_to_end_call),
+  };
+}
+
+async function callCustomer(systemPrompt){
+  const key = keyInput.value.trim();
+  if(!key) throw new Error("Geen OpenRouter API-sleutel ingevoerd.");
+  const model = S.model || DEFAULT_MODEL;
+  const referer = location.href.startsWith("http") ? location.origin : "https://essent-voicebot-testtool.local";
+
+  const base = {
+    model,
+    messages: [{ role: "system", content: systemPrompt }],
+    temperature: 0.9,
+    max_tokens: 2000,
+  };
+  // GLM 5.3 Flash is a reasoning model — its chain-of-thought lands in
+  // message.reasoning and can eat the whole token budget, leaving content empty.
+  // It refuses reasoning:{enabled:false} ("Reasoning is mandatory"), but accepts
+  // effort:"low", which keeps replies fast and cheap. Harmless / ignored for
+  // non-reasoning models; if a model rejects the param outright we retry without.
+  let useReasoningParam = true;
+
+  async function doFetch(withSchema, timeoutMs){
+    const body = { ...base };
+    if(useReasoningParam) body.reasoning = { effort: "low" };
+    if(withSchema) body.response_format = { type: "json_schema", json_schema: REPLY_SCHEMA };
+
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 60000);
+    let res;
+    try {
+      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + key,
+          "Content-Type": "application/json",
+          "HTTP-Referer": referer,
+          "X-Title": "Essent Voicebot Testcase Generator",
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } catch(e){
+      if(e && e.name === "AbortError")
+        throw new Error("Time-out: het model reageerde niet binnen " + Math.round((timeoutMs || 60000)/1000) + " seconden.");
+      throw new Error("Netwerkfout richting OpenRouter: " + (e && e.message ? e.message : e));
+    } finally {
+      clearTimeout(to);
+    }
+    if(!res.ok){
+      const txt = await res.text().catch(() => "");
+      if(res.status === 400 && useReasoningParam && /reasoning/i.test(txt)){
+        useReasoningParam = false;
+        return doFetch(withSchema);
+      }
+      throw new Error("OpenRouter " + res.status + ": " + txt.slice(0, 300));
+    }
+    const data = await res.json();
+    const choice = data && data.choices && data.choices[0];
+    const msg = choice && choice.message;
+    let c = (msg && msg.content) || "";
+    if(!c && msg && typeof msg.reasoning === "string") c = msg.reasoning; // last-ditch salvage
+    return { content: c, finish: choice && choice.finish_reason };
+  }
+
+  // The system prompt already demands a bare JSON object, and the default model
+  // (GLM 5.3 Flash) accepts response_format but does NOT enforce a JSON schema —
+  // so try the plain call first (fast, reliable), then fall back to a native
+  // json_schema request for models that need the nudge to stop adding prose.
+  let content = "", parsed = null, finish = null, lastErr = null;
+  try {
+    const r = await doFetch(false, 55000);
+    content = r.content; finish = r.finish; parsed = parseLoose(content);
+  } catch(e){ lastErr = e; }
+
+  if(!parsed){
+    try {
+      const r = await doFetch(true, 40000);
+      content = r.content; finish = r.finish; parsed = parseLoose(content) || parsed;
+    } catch(e){ lastErr = e; }
+  }
+
+  if(!parsed){
+    if(!content && lastErr) throw lastErr;   // surface time-out / network / HTTP error
+    const hint = finish === "length"
+      ? " (antwoord afgekapt — verhoog max_tokens of kies een lichter model)" : "";
+    throw new Error("Kon geen geldige JSON uit het model halen" + hint +
+      ". Ruwe output: " + String(content).slice(0, 200));
+  }
+  return normalizeReply(parsed);
+}
+
+/* ---------- state machine ---------- */
+function initSocratic(){
+  const c = scenario.socraticCount;
+  const n = c.min + Math.floor(rng() * (c.max - c.min + 1));
+  E.socraticQueue = shuffle(scenario.socraticQuestionBank, rng).slice(0, n);
+  E.socraticIdx = 0;
+  E.socraticInit = true;
+  logMeta("Socratische fase: " + n + " vragen gekozen uit " + scenario.socraticQuestionBank.length);
+}
+
+function handleStep(step, reply){
+  switch(step.type){
+
+    case "auth": {
+      const gtNorm = normalizeField(step.field, S.groundTruth[step.field]);
+      const provNorm = normalizeField(step.field, reply.provided_value);
+      const match = !!provNorm && provNorm.length > 0 && provNorm === gtNorm;
+      if(match){
+        logMeta("✓ " + FIELD_LABEL[step.field] + " geverifieerd (" + reply.provided_value + ")");
+        return { next: "continue" };
+      }
+      if(E.attempts === 0){
+        E.attempts = 1;
+        logMeta("✗ " + FIELD_LABEL[step.field] + " onduidelijk/onjuist — één herkansing");
+        return { next: "stay" };
+      }
+      logMeta("✗ " + FIELD_LABEL[step.field] + " opnieuw fout — verificatie mislukt, sessie eindigt");
+      botSay(step.failLine);
+      S.verification = false;
+      return { next: "end", status: "failed" };
+    }
+
+    case "confirm_old_amount": {
+      if(reply.off_topic && E.redirects < 2){ E.redirects++; E.pendingPrefix = LINES.redirect; return { next:"stay" }; }
+      if(reply.wants_repeat && E.repeats < 2){ E.repeats++; E.pendingPrefix = LINES.repeat; return { next:"stay" }; }
+      const yn = detectYesNo(reply.spoken_reply);
+      logMeta("Huidig bedrag €" + S.groundTruth.current_monthly_amount + " besproken — klant: " + (yn || "onduidelijk"));
+      return { next: "continue" };
+    }
+
+    case "ask_number": {
+      if(reply.off_topic && E.redirects < 2){ E.redirects++; E.pendingPrefix = LINES.redirect; return { next:"stay" }; }
+      const amt = parseAmount(reply.provided_value) != null ? parseAmount(reply.provided_value) : parseAmount(reply.spoken_reply);
+      if(amt == null || amt <= 0){
+        if(E.repeats < 3){ E.repeats++; E.pendingPrefix = LINES.repeat; return { next:"stay" }; }
+        logMeta("Geen bruikbaar nieuw bedrag opgegeven — sessie afgerond zonder opslaan");
+        return { next: "end", status: "complete" };
+      }
+      S.newAmount = Math.round(amt * 100) / 100;
+      E.repeats = 0; E.redirects = 0;
+      logMeta("Nieuw gewenst bedrag: €" + S.newAmount);
+      return { next: "continue" };
+    }
+
+    case "confirm_new_amount": {
+      if(reply.off_topic && E.redirects < 2){ E.redirects++; E.pendingPrefix = LINES.redirect; return { next:"stay" }; }
+      const yn = detectYesNo(reply.spoken_reply);
+      if(yn === "yes"){
+        S.saved = true;
+        S.savedAt = new Date().toISOString();
+        logMeta("✓ Nieuw maandbedrag €" + S.newAmount + " OPGESLAGEN (" + fmtTime(S.savedAt) + ")");
+        return { next: "continue" };
+      }
+      if(yn === "no"){
+        logMeta("Klant bevestigt niet — terug naar 'nieuw bedrag vragen'");
+        return { next: "goto", id: "ask_new" };
+      }
+      if(E.repeats < 2){ E.repeats++; E.pendingPrefix = LINES.repeat; return { next:"stay" }; }
+      logMeta("Geen duidelijke ja/nee na herhaling — terug naar 'nieuw bedrag vragen'");
+      return { next: "goto", id: "ask_new" };
+    }
+
+    case "socratic": {
+      if(reply.wants_repeat && !E._sRepeated){
+        E._sRepeated = true; E.pendingPrefix = LINES.repeat; return { next:"stay" };
+      }
+      E._sRepeated = false;
+      E.socraticAnswers.push({ q: E.socraticQueue[E.socraticIdx], a: reply.spoken_reply });
+      logMeta("Socratisch antwoord " + (E.socraticIdx + 1) + "/" + E.socraticQueue.length + " vastgelegd");
+      E.socraticIdx++;
+      return E.socraticIdx >= E.socraticQueue.length ? { next:"continue" } : { next:"stay" };
+    }
+
+    default:
+      return { next: "continue" };
+  }
+}
+
+function applyDirective(dir){
+  if(!E.running) return;
+  if(dir.next === "end"){ finish(dir.status); return; }
+
+  if(dir.next === "continue"){
+    const cur = scenario.steps[E.stepIndex];
+    const nxt = scenario.steps[E.stepIndex + 1];
+    if(cur.type === "auth" && (!nxt || nxt.type !== "auth")) S.verification = true;
+    E.stepIndex++;
+    E.attempts = 0; E.repeats = 0; E.redirects = 0; E._sRepeated = false;
+  } else if(dir.next === "goto"){
+    E.newAmountRounds++;
+    if(E.newAmountRounds > 3){
+      logMeta("Te vaak heen en weer over het bedrag — sessie afgerond zonder opslaan");
+      finish("complete");
+      return;
+    }
+    E.stepIndex = scenario.steps.findIndex(s => s.id === dir.id);
+    E.attempts = 0; E.repeats = 0; E.redirects = 0;
+  }
+  // "stay" → keep index, pendingPrefix already set
+  scheduleNext();
+}
+
+function scheduleNext(){
+  clearTimeout(timer);
+  timer = setTimeout(() => runStep(), 750);
+}
+
+async function runStep(){
+  if(!E.running) return;
+  const gen = E.gen;
+
+  let step, question, sys;
+
+  if(E._retry){
+    ({ step, question, sys } = E._retry);
+    E._retry = null;
+  } else {
+    step = scenario.steps[E.stepIndex];
+    if(!step){ finish("complete"); return; }
+
+    if(step.type === "say"){
+      botSay(fill(step.line));
+      E.stepIndex++;
+      updateStatus();
+      scheduleNext();
+      return;
+    }
+
+    if(step.type === "socratic" && !E.socraticInit) initSocratic();
+
+    if(step.type === "auth"){
+      question = E.attempts === 0 ? step.question : step.retryLine;
+    } else {
+      const base = step.type === "socratic" ? E.socraticQueue[E.socraticIdx] : step.question;
+      question = (E.pendingPrefix ? E.pendingPrefix + " " : "") + fill(base);
+    }
+    E.pendingPrefix = null;
+    botSay(question);
+    sys = buildSystemPrompt(step, question);
+  }
+
+  updateStatus();
+  showThinking(true);
+
+  let reply;
+  try {
+    reply = await callCustomer(sys);
+  } catch(err){
+    if(gen !== E.gen) return;
+    showThinking(false);
+    E._retry = { step, question, sys };
+    renderError(err);
+    return;
+  }
+  if(gen !== E.gen) return;
+
+  showThinking(false);
+  customerSay(reply.spoken_reply);
+
+  if(reply.wants_to_end_call){
+    logMeta("Klant wil ophangen — gesprek afgebroken");
+    botSay(LINES.customerEnded);
+    finish("ended_by_customer");
+    return;
+  }
+
+  applyDirective(handleStep(step, reply));
+}
+
+function finish(status){
+  E.running = false;
+  clearTimeout(timer);
+  showThinking(false);
+  S.status = status;
+  S.endedAt = new Date().toISOString();
+  if(status === "complete" && S.verification == null) S.verification = true;
+
+  logMeta("Sessie beëindigd — status: " + status);
+  updateStatus();
+  renderSummary();
+  exportEnabled(true);
+  startBtn.disabled = !keyInput.value.trim();
+}
+
+function renderSummary(){
+  const verTxt = S.verification === true ? "geslaagd"
+    : S.verification === false ? "MISLUKT (verificatie-failpad)" : "n.v.t. (gesprek afgebroken)";
+  const rows = [
+    ["Status", S.status],
+    ["Verificatie", verTxt],
+    ["Nieuw maandbedrag", S.newAmount != null ? "€" + S.newAmount : "—"],
+    ["Opgeslagen", S.saved ? "ja — " + fmtTime(S.savedAt) : "nee"],
+    ["Socratische vragen gesteld", E.socraticAnswers.length + (E.socraticQueue.length ? " / " + E.socraticQueue.length : "")],
+    ["Beurten totaal", S.transcript.length],
+  ];
+  summaryEl.innerHTML =
+    "<div class='summary'><h3>Samenvatting</h3><table>" +
+    rows.map(r => "<tr><td>" + escapeHtml(r[0]) + "</td><td>" + escapeHtml(String(r[1])) + "</td></tr>").join("") +
+    "</table></div>";
+  scrollBottom();
+}
+
+/* ---------- export ---------- */
+function exportEnabled(on){ copyBtn.disabled = !on; downloadBtn.disabled = !on; }
+
+function buildExport(){
+  return {
+    tool: "Essent Voicebot Testcase Generator",
+    generated_at: new Date().toISOString(),
+    scenario: { id: scenario.id, label: scenario.label },
+    seed: S.seed,
+    model: S.model,
+    force_edge_case: S.forceEdge,
+    sliders: S.sliders,
+    slider_descriptors: sliderDescriptors(S.sliders),
+    ground_truth: S.groundTruth,
+    verification_passed: S.verification,
+    new_amount: S.newAmount,
+    saved: S.saved,
+    saved_at: S.savedAt,
+    status: S.status,
+    started_at: S.startedAt,
+    ended_at: S.endedAt,
+    transcript: S.transcript.map(t => ({ role: t.role, text: t.text, ts: t.ts })),
+    socratic_answers: E.socraticAnswers,
+    engine_log: S.metaLog,
+  };
+}
+
+function buildPlainText(){
+  const g = S.groundTruth || {};
+  const sl = S.sliders;
+  const L = [];
+  L.push("Essent Voicebot Testcase — " + new Date().toISOString());
+  L.push("Scenario: " + scenario.label + " (" + scenario.id + ")");
+  L.push("Seed: " + S.seed + "   Model: " + S.model + (S.forceEdge ? "   [edge case AAN]" : ""));
+  L.push("Sliders: Klantintelligentie " + sl.intelligence + " | Tech-vaardigheid " + sl.tech + " | Stemming " + sl.mood);
+  L.push("Ground truth: " + g.name + " | geb " + g.date_of_birth + " | postcode " + g.postcode +
+    " | IBAN ..." + g.iban_last3 + " | huidig €" + g.current_monthly_amount +
+    " | trend " + g.recent_usage_trend + " | huishoudenwijziging " + (g.household_change ? "ja" : "nee") +
+    " | zonnepanelen " + (g.has_solar_panels ? "ja" : "nee"));
+  L.push("Verificatie: " + (S.verification === true ? "geslaagd" : S.verification === false ? "mislukt" : "n.v.t."));
+  L.push("Nieuw maandbedrag: " + (S.newAmount != null ? "€" + S.newAmount : "—") +
+    "  — opgeslagen: " + (S.saved ? "ja (" + S.savedAt + ")" : "nee"));
+  L.push("Status: " + S.status);
+  L.push("");
+  L.push("--- Transcript ---");
+  S.transcript.forEach(t => {
+    L.push("[" + fmtTime(t.ts) + "] " + (t.role === "bot" ? "Bot" : "Klant") + ": " + t.text);
+  });
+  if(E.socraticAnswers.length){
+    L.push("");
+    L.push("--- Socratische antwoorden ---");
+    E.socraticAnswers.forEach((qa, i) => { L.push((i+1) + ". V: " + qa.q); L.push("   A: " + qa.a); });
+  }
+  return L.join("\n");
+}
+
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove("show"), 1800);
+}
+
+/* ---------- slider helpers ---------- */
+function readSliders(){
+  return {
+    intelligence: parseInt(sliders.intelligence.value, 10),
+    tech: parseInt(sliders.tech.value, 10),
+    mood: parseInt(sliders.mood.value, 10),
+  };
+}
+function setSliders(obj){
+  ["intelligence","tech","mood"].forEach(k => {
+    sliders[k].value = obj[k];
+    sliderVals[k].textContent = obj[k];
+  });
+  persistSliders();
+}
+function persistSliders(){
+  try { localStorage.setItem("essent_vb_sliders", JSON.stringify(readSliders())); } catch(e){}
+}
+
+/* ---------- actions ---------- */
+function onStart(){
+  if(E.running) return;
+  const key = keyInput.value.trim();
+  if(!key){ alert("Vul eerst uw OpenRouter API-sleutel in."); return; }
+
+  // internal seed — not exposed in the UI, kept only so the export can record
+  // which random ground-truth / Socratic set a transcript came from.
+  const seed = Math.random().toString(36).slice(2, 10);
+
+  rng = makeRng(seed);
+  const gt = randGroundTruth(rng);
+
+  S = freshSession();
+  S.seed = seed;
+  S.scenarioId = scenario.id;
+  S.groundTruth = gt;
+  S.sliders = readSliders();
+  S.forceEdge = edgeChk.checked;
+  S.model = DEFAULT_MODEL;
+  S.startedAt = new Date().toISOString();
+  S.status = "running";
+
+  E = freshEngine();
+  E.gen = ++GEN;
+  E.running = true;
+
+  try { localStorage.setItem("essent_vb_key", key); } catch(e){}
+
+  clearTranscript();
+  metaLogEl.innerHTML = "";
+  renderGroundTruth();
+  exportEnabled(false);
+  startBtn.disabled = true;
+
+  logMeta("Sessie gestart · model " + S.model + (S.forceEdge ? " · edge case AAN" : ""));
+  updateStatus();
+  runStep();
+}
+
+function onNewSession(){
+  GEN++;
+  E.running = false;
+  clearTimeout(timer);
+
+  setSliders(DEFAULTS);
+  edgeChk.checked = false;
+
+  S = freshSession();
+  E = freshEngine();
+  rng = makeRng(Math.random().toString(36).slice(2, 10));
+  S.groundTruth = randGroundTruth(rng);
+  S.status = "idle";
+
+  clearTranscript();
+  metaLogEl.innerHTML = "";
+  renderGroundTruth();
+  exportEnabled(false);
+  startBtn.disabled = !keyInput.value.trim();
+  updateStatus();
+  logMeta("Nieuwe sessie klaar — verse antwoordsleutel gegenereerd. Druk op Start.");
+}
+
+function onRandomize(){
+  const r = {
+    intelligence: Math.floor(Math.random() * 101),
+    tech: Math.floor(Math.random() * 101),
+    mood: Math.floor(Math.random() * 101),
+  };
+  setSliders(r);
+}
+
+/* ---------- wiring ---------- */
+(function init(){
+  // scenario dropdown
+  SCENARIOS.forEach(sc => {
+    const o = document.createElement("option");
+    o.value = sc.id; o.textContent = sc.label;
+    scenarioSel.appendChild(o);
+  });
+  scenarioSel.value = scenario.id;
+  scenarioSel.addEventListener("change", () => {
+    scenario = SCENARIOS.find(s => s.id === scenarioSel.value) || SCENARIOS[0];
+    onNewSession();
+  });
+
+  // sliders
+  ["intelligence","tech","mood"].forEach(k => {
+    sliders[k].addEventListener("input", () => {
+      sliderVals[k].textContent = sliders[k].value;
+      persistSliders();
+    });
+  });
+
+  // restore persisted values
+  try {
+    const savedSliders = JSON.parse(localStorage.getItem("essent_vb_sliders") || "null");
+    setSliders(savedSliders && typeof savedSliders === "object" ? { ...DEFAULTS, ...savedSliders } : DEFAULTS);
+  } catch(e){ setSliders(DEFAULTS); }
+
+  try { keyInput.value = localStorage.getItem("essent_vb_key") || ""; } catch(e){}
+
+  keyInput.addEventListener("input", () => {
+    if(!E.running) startBtn.disabled = !keyInput.value.trim();
+  });
+
+  startBtn.addEventListener("click", onStart);
+  newBtn.addEventListener("click", onNewSession);
+  randBtn.addEventListener("click", onRandomize);
+
+  copyBtn.addEventListener("click", async () => {
+    const text = buildPlainText();
+    try { await navigator.clipboard.writeText(text); toast("Transcript gekopieerd"); }
+    catch(e){
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("Transcript gekopieerd"); }
+      catch(_){ toast("Kopiëren mislukt"); }
+      ta.remove();
+    }
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "essent-voicebot-testcase-" + (S.seed || "sessie") + "-" + Date.now() + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // initial preview ground truth
+  rng = makeRng(Math.random().toString(36).slice(2, 10));
+  S.groundTruth = randGroundTruth(rng);
+  renderGroundTruth();
+  startBtn.disabled = !keyInput.value.trim();
+  updateStatus();
+})();
+</script>
+</body>
+</html>

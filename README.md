@@ -41,6 +41,11 @@ python3 -m http.server 8000
 | **Stemming** | 0 = calm and friendly · 100 = angry, threatens to escalate |
 | **🎲 Randomize** | Jumps all three sliders to random values — quick way to batch edge cases. |
 | **Forceer edge case** | Adds one curveball instruction to the prompt each turn (wrong digit, changing their mind, background noise, resistance to a question). |
+| **🎭 Genereer klantbeeld** | Optional. Sends a prompt built from the sliders + the generated customer record (approx. age, name) to an image model (`IMAGE_MODEL`, default `google/gemini-2.5-flash-image`, ~$0.04/image, ~10s) and shows an AI impression of the caller. It is an illustration, not the real customer. Cleared on New session / Start. If a portrait was generated it is embedded (large base64) in the JSON export; **Bewaar afbeelding** saves it separately. |
+
+The transcript is paced at roughly one line every ~2 seconds (`TURN_GAP_MS` /
+`BOT_READ_MS` in `index.html`) so a viewer can follow the call unfold even when
+the model responds instantly; when the model is slow its latency dominates.
 
 The customer model is fixed to **`z-ai/glm-5.3-flash`** (`DEFAULT_MODEL` in
 `index.html`, one line to change). GLM 5.3 Flash accepts `response_format` but

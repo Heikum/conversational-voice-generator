@@ -116,6 +116,20 @@
   table.gt td:first-child{color:var(--ink-soft); width:46%}
 
   .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
+
+  .persona{margin-top:18px; padding-top:16px; border-top:1px solid var(--line)}
+  .persona .phead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px}
+  .persona .phead b{font-size:13px}
+  .persona figure{margin:0; border:1px dashed var(--line); border-radius:14px; overflow:hidden; background:#fbfbfa}
+  .persona figure.empty{display:flex; align-items:center; justify-content:center; min-height:120px;
+    color:var(--ink-soft); font-size:12px; text-align:center; padding:16px}
+  .persona figure.loading{position:relative; min-height:160px}
+  .persona figure.loading::after{content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(45deg,#f0efec,#f0efec 12px,#f7f6f4 12px,#f7f6f4 24px);
+    animation:shim 1s linear infinite}
+  @keyframes shim{to{background-position:34px 0}}
+  .persona img{display:block; width:100%; height:auto}
+  .persona .pcap{margin-top:6px; font-size:11px; color:var(--ink-soft); line-height:1.45}
   #toast{
     position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
     background:#1b1b1b; color:#fff; padding:10px 18px; border-radius:999px; font-size:13px;
@@ -157,6 +171,21 @@
 
     <div class="btnrow">
       <button class="btn ghost small" id="btn-randomize">🎲 Randomiseer sliders</button>
+    </div>
+
+    <div class="persona">
+      <div class="phead">
+        <b>Klantbeeld</b>
+        <button class="btn ghost small" id="btn-persona" disabled>🎭 Genereer klantbeeld</button>
+      </div>
+      <figure id="persona-fig" class="empty">
+        <span id="persona-placeholder">Nog geen beeld. Genereert een AI-impressie van de klant op basis van de sliders en de gegenereerde klantgegevens (leeftijd, naam).</span>
+        <img id="persona-img" alt="AI-impressie van de klant" hidden />
+      </figure>
+      <div class="pcap" id="persona-cap" hidden></div>
+      <div class="btnrow" style="margin-top:8px">
+        <button class="btn ghost small" id="btn-persona-dl" hidden>⬇︎ Bewaar afbeelding</button>
+      </div>
     </div>
 
     <div class="chk">
@@ -214,7 +243,9 @@
 <script>
 "use strict";
 
-const DEFAULT_MODEL = "z-ai/glm-5.3-flash";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_MODEL = "z-ai/glm-5.3-flash";        // customer replies
+const IMAGE_MODEL   = "google/gemini-2.5-flash-image";  // optional persona portrait
 const DEFAULTS = { intelligence:55, tech:55, mood:25 };
 
 /* ---- persona descriptor bands ---- */
@@ -428,6 +459,12 @@ const wrapEl = $("transcript-wrap");
 const summaryEl = $("summary");
 const gtTableEl = $("gttable");
 const toastEl = $("toast");
+const personaBtn = $("btn-persona");
+const personaDlBtn = $("btn-persona-dl");
+const personaFig = $("persona-fig");
+const personaImg = $("persona-img");
+const personaPlaceholder = $("persona-placeholder");
+const personaCap = $("persona-cap");
 
 /* ---------- module state ---------- */
 let scenario = SCENARIOS[0];
@@ -444,6 +481,7 @@ function freshSession(){
     transcript:[], metaLog:[],
     verification:null, newAmount:null, saved:false, savedAt:null,
     status:"idle", startedAt:null, endedAt:null,
+    personaImage:null,
   };
 }
 function freshEngine(){
@@ -573,6 +611,111 @@ function renderGroundTruth(){
     "<tr><td>" + escapeHtml(r[0]) + "</td><td>" + escapeHtml(String(r[1])) + "</td></tr>").join("");
 }
 
+/* ---------- persona portrait (optional, image model) ---------- */
+let personaBusy = false;
+
+function resetPersona(){
+  S.personaImage = null;
+  personaImg.hidden = true;
+  personaImg.removeAttribute("src");
+  personaPlaceholder.hidden = false;
+  personaFig.className = "empty";
+  personaCap.hidden = true;
+  personaCap.textContent = "";
+  personaDlBtn.hidden = true;
+}
+
+function buildPersonaPrompt(){
+  const g = S.groundTruth || {};
+  const sl = readSliders();
+  const yr = parseInt(String(g.date_of_birth || "").slice(-4), 10);
+  const age = isFinite(yr) ? Math.max(18, new Date().getFullYear() - yr) : 45;
+  const mood = sl.mood <= 20 ? "ontspannen en vriendelijk, milde glimlach"
+    : sl.mood <= 50 ? "licht ongeduldig, zakelijke blik"
+    : sl.mood <= 80 ? "duidelijk geïrriteerd, wenkbrauwen gefronst"
+    : "boos en geëscaleerd, vrije hand maakt een geïrriteerd gebaar";
+  const tech = sl.tech <= 20 ? "houdt de telefoon wat onwennig vast, leesbril op het puntje van de neus, tuurt naar het scherm"
+    : sl.tech <= 50 ? "houdt de telefoon gewoon vast, kijkt af en toe zoekend op het scherm"
+    : "gebruikt de telefoon vlot en zelfverzekerd";
+  const focus = sl.intelligence <= 20 ? "wat afwezige, zoekende oogopslag"
+    : sl.intelligence <= 50 ? "aandachtige maar aarzelende uitdrukking"
+    : "heldere, gerichte blik";
+  return [
+    "Realistische, spontane smartphone-snapshot in portretverhouding.",
+    "Onderwerp: een gewone Nederlander van ongeveer " + age + " jaar" +
+      (g.name ? " (uitstraling passend bij de naam “" + g.name + "”)" : "") + ",",
+    "thuis aan de keukentafel, aan het bellen met de klantenservice, telefoon aan het oor.",
+    "Uitdrukking: " + mood + "; " + focus + "; " + tech + ".",
+    "Zacht daglicht van een raam, alledaags Nederlands interieur, lichte camera-imperfecties.",
+    "Respectvol en natuurlijk, geen karikatuur of stereotype, fotorealistisch, geen tekst of logo's in beeld."
+  ].join(" ");
+}
+
+async function generatePersonaImage(){
+  if(personaBusy) return;
+  if(!keyInput.value.trim()){ alert("Vul eerst uw OpenRouter API-sleutel in."); return; }
+  if(!S.groundTruth) return;
+
+  personaBusy = true;
+  personaBtn.disabled = true;
+  personaFig.className = "loading";
+  personaPlaceholder.hidden = true;
+  personaImg.hidden = true;
+  personaDlBtn.hidden = true;
+  personaCap.hidden = false;
+  personaCap.textContent = "Beeld genereren met " + IMAGE_MODEL + "… (~10s)";
+
+  try {
+    const res = await orPost({
+      model: IMAGE_MODEL,
+      modalities: ["image", "text"],
+      messages: [{ role: "user", content: buildPersonaPrompt() }],
+    }, 90000);
+    if(!res.ok){
+      const txt = await res.text().catch(() => "");
+      throw new Error("OpenRouter " + res.status + ": " + txt.slice(0, 200));
+    }
+    const data = await res.json();
+    const m = data && data.choices && data.choices[0] && data.choices[0].message;
+    const url = m && m.images && m.images[0] && m.images[0].image_url && m.images[0].image_url.url;
+    if(!url || !/^data:image\//.test(url)) throw new Error("Geen afbeelding in het antwoord van het model.");
+    S.personaImage = url;
+    personaImg.src = url;
+    personaImg.hidden = false;
+    personaFig.className = "";
+    const sl = readSliders();
+    personaCap.textContent = "AI-impressie o.b.v. sliders (intelligentie " + sl.intelligence +
+      " · tech " + sl.tech + " · stemming " + sl.mood + ") — niet de echte klant.";
+    personaDlBtn.hidden = false;
+    logMeta("Klantbeeld gegenereerd (" + IMAGE_MODEL + ")");
+  } catch(e){
+    personaFig.className = "empty";
+    personaPlaceholder.hidden = false;
+    personaCap.hidden = false;
+    personaCap.textContent = "⚠️ " + (e && e.message ? e.message : e);
+  } finally {
+    personaBusy = false;
+    personaBtn.disabled = !keyInput.value.trim();
+  }
+}
+
+function savePersonaImage(){
+  if(!S.personaImage) return;
+  try {
+    const [meta, b64] = S.personaImage.split(",");
+    const mime = (meta.match(/data:(.*?);base64/) || [])[1] || "image/png";
+    const bin = atob(b64), arr = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([arr], { type: mime }));
+    a.download = "essent-klantbeeld-" + (S.seed || "sessie") + "-" + Date.now() + "." + (mime.split("/")[1] || "png");
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch(e){
+    toast("Opslaan geblokkeerd — rechtsklik op de afbeelding om te bewaren");
+  }
+}
+
 /* ---------- system prompt ---------- */
 function buildSystemPrompt(step, botQuestion){
   const g = S.groundTruth, sl = S.sliders;
@@ -674,9 +817,45 @@ async function probeOpenRouter(){
   }
 }
 
-async function callCustomer(systemPrompt){
+// Timeout via Promise.race rather than AbortController: some embedded browser
+// contexts structured-clone the fetch init and choke on a non-cloneable
+// AbortSignal ("could not be cloned"). The request isn't truly cancelled, but
+// the caller recovers.
+function withTimeout(promise, ms){
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(
+      "Time-out: het model reageerde niet binnen " + Math.round(ms / 1000) + " seconden.")), ms);
+  });
+  promise.catch(() => {});  // if the timeout wins the race, ignore the fetch's later settle
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+}
+
+// Shared low-level POST to OpenRouter. Only Authorization + Content-Type headers
+// (minimal CORS preflight — extra custom headers trip some proxies/extensions).
+// Throws a diagnosed "OpenRouter onbereikbaar" on a network failure, or "Time-out".
+async function orPost(body, timeoutMs){
   const key = keyInput.value.trim();
   if(!key) throw new Error("Geen OpenRouter API-sleutel ingevoerd.");
+  try {
+    return await withTimeout(fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }), timeoutMs || 60000);
+  } catch(e){
+    if(e && /^Time-out:/.test(e.message)) throw e;
+    if(e && /^OpenRouter onbereikbaar:/.test(e.message)) throw e;
+    const probe = await probeOpenRouter();
+    throw new Error("OpenRouter onbereikbaar: " + (e && e.message ? e.message : e) +
+      ". Test zonder auth: openrouter.ai is " + probe +
+      (location.protocol === "file:"
+        ? ". Open dit bestand via http://localhost…, niet als file://."
+        : ". Waarschijnlijk blokkeert dit netwerk (hotspot/VPN/proxy) of een browser-extensie/ad-blocker de API. Probeer een ander netwerk of schakel shields/extensies uit."));
+  }
+}
+
+async function callCustomer(systemPrompt){
   const model = S.model || DEFAULT_MODEL;
 
   const base = {
@@ -692,54 +871,17 @@ async function callCustomer(systemPrompt){
   // non-reasoning models; if a model rejects the param outright we retry without.
   let useReasoningParam = true;
 
-  // Timeout via Promise.race rather than AbortController: some embedded browser
-  // contexts structured-clone the fetch init and choke on a non-cloneable
-  // AbortSignal ("could not be cloned"). The request isn't truly cancelled, but
-  // the turn recovers and the retry button works.
-  function withTimeout(promise, ms){
-    let t;
-    const timeout = new Promise((_, reject) => {
-      t = setTimeout(() => reject(new Error(
-        "Time-out: het model reageerde niet binnen " + Math.round(ms / 1000) + " seconden.")), ms);
-    });
-    promise.catch(() => {});  // if the timeout wins the race, ignore the fetch's later settle
-    return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
-  }
-
   async function doFetch(withSchema, timeoutMs){
     const body = { ...base };
     if(useReasoningParam) body.reasoning = { effort: "low" };
     if(withSchema) body.response_format = { type: "json_schema", json_schema: REPLY_SCHEMA };
 
-    let res;
-    try {
-      // Only Authorization + Content-Type — keeps this a minimal CORS preflight.
-      // OpenRouter's optional HTTP-Referer / X-Title ranking headers are omitted
-      // on purpose: some mobile/proxy networks and privacy extensions block the
-      // preflight when extra custom headers are present.
-      res = await withTimeout(fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + key,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      }), timeoutMs || 60000);
-    } catch(e){
-      if(e && /^Time-out:/.test(e.message)) throw e;
-      if(e && /^OpenRouter onbereikbaar:/.test(e.message)) throw e;
-      const probe = await probeOpenRouter();
-      throw new Error("OpenRouter onbereikbaar: " + (e && e.message ? e.message : e) +
-        ". Test zonder auth: openrouter.ai is " + probe +
-        (location.protocol === "file:"
-          ? ". Open dit bestand via http://localhost…, niet als file://."
-          : ". Waarschijnlijk blokkeert dit netwerk (hotspot/VPN/proxy) of een browser-extensie/ad-blocker de API. Probeer een ander netwerk of schakel shields/extensies uit."));
-    }
+    const res = await orPost(body, timeoutMs);
     if(!res.ok){
       const txt = await res.text().catch(() => "");
       if(res.status === 400 && useReasoningParam && /reasoning/i.test(txt)){
         useReasoningParam = false;
-        return doFetch(withSchema);
+        return doFetch(withSchema, timeoutMs);
       }
       throw new Error("OpenRouter " + res.status + ": " + txt.slice(0, 300));
     }
@@ -894,14 +1036,22 @@ function applyDirective(dir){
   scheduleNext();
 }
 
+// Pacing so a viewer can actually follow the call unfold, not just when the
+// model is slow. TURN_GAP = pause between a customer reply and the next bot line;
+// BOT_READ = pause after the bot's line lands before the customer "thinks".
+const TURN_GAP_MS = 1900;
+const BOT_READ_MS = 1100;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 function scheduleNext(){
   clearTimeout(timer);
-  timer = setTimeout(() => runStep(), 750);
+  timer = setTimeout(() => runStep(), TURN_GAP_MS);
 }
 
 async function runStep(){
   if(!E.running) return;
   const gen = E.gen;
+  const fromRetry = !!E._retry;
 
   let step, question, sys;
 
@@ -934,6 +1084,13 @@ async function runStep(){
   }
 
   updateStatus();
+
+  // let the bot's line sit on screen a beat before the customer starts "talking"
+  if(!fromRetry){
+    await sleep(BOT_READ_MS);
+    if(gen !== E.gen || !E.running) return;
+  }
+
   showThinking(true);
 
   let reply;
@@ -1018,6 +1175,7 @@ function buildExport(){
     transcript: S.transcript.map(t => ({ role: t.role, text: t.text, ts: t.ts })),
     socratic_answers: E.socraticAnswers,
     engine_log: S.metaLog,
+    persona_image_data_url: S.personaImage || null,   // large base64 PNG if a portrait was generated
   };
 }
 
@@ -1037,6 +1195,7 @@ function buildPlainText(){
   L.push("Nieuw maandbedrag: " + (S.newAmount != null ? "€" + S.newAmount : "—") +
     "  — opgeslagen: " + (S.saved ? "ja (" + S.savedAt + ")" : "nee"));
   L.push("Status: " + S.status);
+  L.push("Klantbeeld: " + (S.personaImage ? "gegenereerd (los opgeslagen / in JSON-export)" : "niet gegenereerd"));
   L.push("");
   L.push("--- Transcript ---");
   S.transcript.forEach(t => {
@@ -1108,6 +1267,7 @@ function onStart(){
   clearTranscript();
   metaLogEl.innerHTML = "";
   renderGroundTruth();
+  resetPersona();
   exportEnabled(false);
   startBtn.disabled = true;
 
@@ -1133,6 +1293,7 @@ function onNewSession(){
   clearTranscript();
   metaLogEl.innerHTML = "";
   renderGroundTruth();
+  resetPersona();
   exportEnabled(false);
   startBtn.disabled = !keyInput.value.trim();
   updateStatus();
@@ -1181,12 +1342,16 @@ function onRandomize(){
   try { keyInput.value = localStorage.getItem("essent_vb_key") || ""; } catch(e){}
 
   keyInput.addEventListener("input", () => {
-    if(!E.running) startBtn.disabled = !keyInput.value.trim();
+    const noKey = !keyInput.value.trim();
+    if(!E.running) startBtn.disabled = noKey;
+    personaBtn.disabled = noKey || personaBusy;
   });
 
   startBtn.addEventListener("click", onStart);
   newBtn.addEventListener("click", onNewSession);
   randBtn.addEventListener("click", onRandomize);
+  personaBtn.addEventListener("click", generatePersonaImage);
+  personaDlBtn.addEventListener("click", savePersonaImage);
 
   copyBtn.addEventListener("click", async () => {
     const text = buildPlainText();
@@ -1218,6 +1383,7 @@ function onRandomize(){
   S.groundTruth = randGroundTruth(rng);
   renderGroundTruth();
   startBtn.disabled = !keyInput.value.trim();
+  personaBtn.disabled = !keyInput.value.trim();
   updateStatus();
 })();
 </script>

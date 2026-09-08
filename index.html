@@ -163,6 +163,32 @@
   .export-grp .glabel{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.02em;
     color:var(--ink-soft); width:66px; flex:none}
 
+  .field-row{display:flex; gap:12px; align-items:flex-end; margin-top:12px; flex-wrap:wrap}
+  .field-row > div{flex:1; min-width:120px}
+  .field-row label.field{margin:0 0 4px}
+  input[type=number]{width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:11px;
+    font:inherit; background:#fbfbfa; color:var(--ink)}
+  .mini-hint{font-size:11px; color:var(--ink-soft); margin-top:4px}
+  details.adv{margin-top:14px}
+  details.adv > summary{cursor:pointer; font-size:12px; font-weight:800; letter-spacing:.02em;
+    text-transform:uppercase; color:var(--ink-soft)}
+  details.adv textarea{width:100%; min-height:150px; margin-top:8px; padding:10px 12px; font:12px/1.5 ui-monospace,
+    SFMono-Regular,Menlo,Consolas,monospace; border:1px solid var(--line); border-radius:12px;
+    background:#fbfbfa; color:var(--ink); resize:vertical}
+  details.adv textarea:focus{outline:2px solid var(--essent-red); outline-offset:1px}
+
+  /* progress stepper */
+  .stepper{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px}
+  .stepper .st{font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px;
+    background:#efeae6; color:#8a7d73; white-space:nowrap}
+  .stepper .st.done{background:#e3f5e9; color:#1c7a43}
+  .stepper .st.now{background:var(--essent-red); color:#fff}
+
+  .conv-head .runctl{display:flex; gap:8px; align-items:center}
+  .conv-head .runctl button{font-size:12px; font-weight:700; border:0; border-radius:999px;
+    padding:5px 11px; background:#f0efec; color:var(--ink); cursor:pointer}
+  .conv-head .runctl button:disabled{opacity:.4; cursor:not-allowed}
+
   /* lightbox for the full persona image */
   #lightbox{position:fixed; inset:0; background:rgba(20,15,18,.78); display:none;
     align-items:center; justify-content:center; z-index:60; padding:24px; cursor:zoom-out}
@@ -194,6 +220,9 @@
       <label class="field" for="scenario">Scenario</label>
       <select id="scenario"></select>
 
+      <label class="field" for="preset">Preset</label>
+      <select id="preset"></select>
+
       <div class="slider-row">
         <div class="srtop"><span>Klantintelligentie</span><span class="val" id="v-intelligence">55</span></div>
         <input type="range" id="s-intelligence" min="0" max="100" value="55" />
@@ -218,9 +247,45 @@
         <label for="edge">Forceer edge case — één curveball per beurt (verkeerd cijfer, van gedachten veranderen, achtergrondgeluid, weerstand).</label>
       </div>
       <div class="chk">
+        <input type="checkbox" id="asr" />
+        <label for="asr">Simuleer spraakherkenningsfouten — verminkt af en toe het doorgegeven cijfer/bedrag vóór de match, zoals een echte voicebot dat via ASR zou horen.</label>
+      </div>
+      <div class="chk">
         <input type="checkbox" id="voice" />
         <label for="voice">Klantstem — spreekt elke klantregel hardop uit (<code>openai/gpt-audio-mini</code>, emotie volgt de Stemming-slider). Los afspelen kan met ▶ bij een regel.</label>
       </div>
+
+      <div class="field-row">
+        <div>
+          <label class="field" for="retries">Herkansingen per veld</label>
+          <input type="number" id="retries" min="0" max="4" step="1" value="1" />
+          <div class="mini-hint">Bij hoeveel mislukte pogingen de verificatie faalt.</div>
+        </div>
+        <div>
+          <label class="field" for="tempo">Tempo</label>
+          <select id="tempo">
+            <option value="slow">Langzaam</option>
+            <option value="normal" selected>Normaal</option>
+            <option value="fast">Snel</option>
+            <option value="instant">Direct</option>
+          </select>
+          <div class="mini-hint">Pauze tussen de regels op het scherm.</div>
+        </div>
+      </div>
+
+      <details class="adv" id="adv">
+        <summary>Geavanceerd</summary>
+        <div class="field-row">
+          <div style="flex:0 0 130px; min-width:110px">
+            <label class="field" for="temp">Temperature</label>
+            <input type="number" id="temp" min="0" max="2" step="0.1" value="0.9" />
+          </div>
+        </div>
+        <label class="field" for="sysprompt" style="margin-top:12px">Systeemprompt voor de klant</label>
+        <div class="mini-hint">Tokens: <code>{intelligence}</code> <code>{intelligence_descriptor}</code> <code>{tech}</code> <code>{tech_descriptor}</code> <code>{mood}</code> <code>{mood_descriptor}</code> <code>{name}</code> <code>{dob}</code> <code>{postcode}</code> <code>{iban_last3}</code> <code>{current_amount}</code> <code>{trend}</code> <code>{household_change}</code> <code>{solar}</code> <code>{bot_question}</code> <code>{history}</code> <code>{edge_instruction}</code></div>
+        <textarea id="sysprompt" spellcheck="false"></textarea>
+        <button type="button" class="linkbtn" id="btn-prompt-reset">↺ Terug naar standaard</button>
+      </details>
     </div>
 
     <div class="sec">
@@ -249,8 +314,14 @@
   <section class="card" id="conversation">
     <div class="conv-head">
       <h2>Gesprek</h2>
-      <span class="pill idle" id="pill">Nog niet gestart</span>
+      <div class="runctl">
+        <button type="button" id="btn-pause" hidden>⏸ Pauze</button>
+        <button type="button" id="btn-stepnext" hidden disabled>⏭ Volgende</button>
+        <span class="pill idle" id="pill">Nog niet gestart</span>
+      </div>
     </div>
+
+    <div class="stepper" id="stepper"></div>
 
     <div class="caller" id="caller">
       <div class="avatar ph" id="cl-avatar"><img id="persona-img" alt="AI-impressie van de klant" hidden /></div>
@@ -356,6 +427,52 @@ const EDGE_CASES = [
   "Geef een dubbelzinnig, half ja / half nee antwoord op de bevestiging.",
   "Noem het bedrag op een verwarrende manier (bijvoorbeeld per jaar in plaats van per maand).",
 ];
+
+/* ---- persona presets (one-click slider combos) ---- */
+const PERSONA_PRESETS = [
+  { id:"",            label:"— eigen instelling —" },
+  { id:"cooperative", label:"Vlotte, meewerkende klant",  intelligence:85, tech:80, mood:10 },
+  { id:"pensioner",   label:"Boze gepensioneerde",        intelligence:45, tech:15, mood:85 },
+  { id:"busy_parent", label:"Gestreste ouder, weinig tijd",intelligence:65, tech:60, mood:60 },
+  { id:"digibeet",    label:"Digibeet, raakt in paniek",  intelligence:30, tech:5,  mood:40 },
+  { id:"sharp_angry", label:"Scherp én woedend",          intelligence:90, tech:85, mood:95 },
+  { id:"confused",    label:"Verward, dwaalt steeds af",  intelligence:20, tech:25, mood:30 },
+];
+
+/* ---- default customer system prompt (tokens filled at run time) ---- */
+const PROMPT_TEMPLATE =
+`Je speelt een klant die belt met de klantenservice van een Nederlands energiebedrijf (Essent) om zijn/haar maandbedrag (voorschotbedrag) te wijzigen. Dit is een telefoongesprek, dus je antwoordt kort en in gesproken spreektaal.
+
+Persoonlijkheid (baseer je toon en gedrag hierop):
+- Intelligentie/begripsniveau: {intelligence}/100 — {intelligence_descriptor}
+- Digitale/technische vaardigheid: {tech}/100 — {tech_descriptor}
+- Stemming: {mood}/100 — {mood_descriptor}
+
+Dit weet je (je echte gegevens). Je kunt je hier per ongeluk in vergissen: hoe lager je intelligentie en hoe hoger je irritatie, hoe groter de kans dat je een cijfer verwisselt, iets verkeerd zegt of afgeleid raakt.
+- Naam: {name}
+- Geboortedatum: {dob}
+- Postcode: {postcode}
+- Laatste 3 cijfers IBAN: {iban_last3}
+- Huidig maandbedrag: €{current_amount}
+- Verbruikstrend afgelopen jaar: {trend}
+- Verandering in huishouden: {household_change}
+- Zonnepanelen: {solar}
+
+De medewerker vraagt je nu het volgende: "{bot_question}"
+
+Gespreksgeschiedenis tot nu toe:
+{history}
+
+Antwoord alleen als de klant, in het Nederlands, in de stijl die past bij je persoonlijkheid. Kies zelf 'u' of 'je' op basis van je personage. Blijf in je rol en geef niet meer informatie dan gevraagd, tenzij je personage dat zou doen.
+
+Geef daarna UITSLUITEND één geldig JSON-object terug — geen uitleg, geen markdown, geen tekst eromheen — met exact deze velden:
+{
+  "spoken_reply": "string — je natuurlijke, gesproken Nederlandse antwoord (zin of zinnen)",
+  "provided_value": "string of null — genormaliseerde waarde voor het gevraagde veld indien van toepassing (geboortedatum als DD-MM-JJJJ, postcode als 1234AB, IBAN als 3 cijfers, bedrag als getal in euro's); null als je in deze beurt geen concrete waarde geeft",
+  "wants_repeat": "boolean — true als je vraagt om herhaling of het niet verstond",
+  "off_topic": "boolean — true als je antwoord afdwaalt van wat gevraagd werd",
+  "wants_to_end_call": "boolean — true als je wilt ophangen of het gesprek wilt stoppen"
+}{edge_instruction}`;
 
 /* ---- scenarios: data, not hardcoded logic. Engine dispatches on step.type only. ---- */
 const SCENARIOS = [{
@@ -528,16 +645,37 @@ const clSub = $("cl-sub");
 const clChips = $("cl-chips");
 const lightboxEl = $("lightbox");
 const voiceChk = $("voice");
+const asrChk = $("asr");
 const playAllBtn = $("btn-playall");
 const audioDlBtn = $("btn-audio-dl");
+const presetSel = $("preset");
+const retriesInput = $("retries");
+const tempoSel = $("tempo");
+const tempInput = $("temp");
+const sysPromptEl = $("sysprompt");
+const promptResetBtn = $("btn-prompt-reset");
+const stepperEl = $("stepper");
+const pauseBtn = $("btn-pause");
+const stepNextBtn = $("btn-stepnext");
 
 /* ---------- module state ---------- */
 let scenario = SCENARIOS[0];
 let rng = makeRng("preview");
 let GEN = 0;
 let timer = null;
+let paused = false;
+let stepPending = false;   // a scheduled turn is held because we're paused
 let S = freshSession();
 let E = freshEngine();
+
+const TEMPO = {
+  slow:    { gap: 2900, read: 1700 },
+  normal:  { gap: 1900, read: 1100 },
+  fast:    { gap: 900,  read: 450  },
+  instant: { gap: 120,  read: 60   },
+};
+function pace(){ return TEMPO[(S.tempo || tempoSel.value)] || TEMPO.normal; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function freshSession(){
   return {
@@ -547,6 +685,7 @@ function freshSession(){
     verification:null, newAmount:null, saved:false, savedAt:null,
     status:"idle", startedAt:null, endedAt:null,
     personaImage:null,
+    preset:"", asr:false, retries:1, tempo:"normal", temperature:0.9, customPrompt:false,
   };
 }
 function freshEngine(){
@@ -653,7 +792,7 @@ function stepLabel(step){
 }
 function updateStatus(){
   const map = {
-    idle:["idle","Nog niet gestart"], running:["running","Bezig…"],
+    idle:["idle","Nog niet gestart"], running:[paused ? "ended" : "running", paused ? "Gepauzeerd" : "Bezig…"],
     complete:["complete","Voltooid"], failed:["failed","Verificatie mislukt"],
     ended_by_customer:["ended","Klant hing op"], error:["failed","Fout — kan hervatten"],
   };
@@ -664,6 +803,28 @@ function updateStatus(){
   verValEl.textContent = S.verification === true ? "geslaagd" : S.verification === false ? "mislukt" : "—";
   savedValEl.textContent = S.saved ? ("ja — €" + S.newAmount)
     : (S.newAmount != null ? "nee (bedrag: €" + S.newAmount + ")" : "—");
+  renderStepper();
+}
+
+const PHASES = ["Begroeting", "Verificatie", "Bedrag", "Socratisch", "Afsluiting"];
+function phaseOf(step){
+  if(!step) return 5;
+  switch(step.type){
+    case "say": return step.id === "greeting" ? 0 : 4;
+    case "auth": return 1;
+    case "confirm_old_amount": case "ask_number": case "confirm_new_amount": return 2;
+    case "socratic": return 3;
+    default: return 2;
+  }
+}
+function renderStepper(){
+  if(S.status === "idle"){ stepperEl.innerHTML = ""; return; }
+  const cur = phaseOf(scenario.steps[E.stepIndex]);
+  const done = S.status === "complete" || S.status === "failed" || S.status === "ended_by_customer";
+  stepperEl.innerHTML = PHASES.map((p, i) => {
+    const cls = done ? "st done" : i < cur ? "st done" : i === cur ? "st now" : "st";
+    return "<span class='" + cls + "'>" + p + "</span>";
+  }).join("");
 }
 
 /* ---------- ground-truth panel ---------- */
@@ -990,50 +1151,31 @@ async function downloadCustomerAudio(){
 }
 
 /* ---------- system prompt ---------- */
+const trendNL = { increased:"gestegen", decreased:"gedaald", stable:"stabiel" };
+
 function buildSystemPrompt(step, botQuestion){
   const g = S.groundTruth, sl = S.sliders;
   const history = S.transcript
     .map(t => (t.role === "bot" ? "Medewerker" : "Klant") + ": " + t.text)
-    .join("\n");
+    .join("\n") || "(nog geen gesprek)";
 
-  let p =
-`Je speelt een klant die belt met de klantenservice van een Nederlands energiebedrijf (Essent) om zijn/haar maandbedrag (voorschotbedrag) te wijzigen. Dit is een telefoongesprek, dus je antwoordt kort en in gesproken spreektaal.
+  const edge = S.forceEdge
+    ? "\n\nEXTRA INSTRUCTIE VOOR DEZE BEURT (edge case): " + EDGE_CASES[Math.floor(rng() * EDGE_CASES.length)]
+    : "";
 
-Persoonlijkheid (baseer je toon en gedrag hierop):
-- Intelligentie/begripsniveau: ${sl.intelligence}/100 — ${desc("intelligence", sl.intelligence)}
-- Digitale/technische vaardigheid: ${sl.tech}/100 — ${desc("tech", sl.tech)}
-- Stemming: ${sl.mood}/100 — ${desc("mood", sl.mood)}
-
-Dit weet je (je echte gegevens). Je kunt je hier per ongeluk in vergissen: hoe lager je intelligentie en hoe hoger je irritatie, hoe groter de kans dat je een cijfer verwisselt, iets verkeerd zegt of afgeleid raakt.
-- Naam: ${g.name}
-- Geboortedatum: ${g.date_of_birth}
-- Postcode: ${g.postcode}
-- Laatste 3 cijfers IBAN: ${g.iban_last3}
-- Huidig maandbedrag: €${g.current_monthly_amount}
-- Verbruikstrend afgelopen jaar: ${g.recent_usage_trend}
-- Verandering in huishouden: ${g.household_change ? "ja" : "nee"}
-- Zonnepanelen: ${g.has_solar_panels ? "ja" : "nee"}
-
-De medewerker vraagt je nu het volgende: "${botQuestion}"
-
-Gespreksgeschiedenis tot nu toe:
-${history || "(nog geen gesprek)"}
-
-Antwoord alleen als de klant, in het Nederlands, in de stijl die past bij je persoonlijkheid. Kies zelf 'u' of 'je' op basis van je personage. Blijf in je rol en geef niet meer informatie dan gevraagd, tenzij je personage dat zou doen.
-
-Geef daarna UITSLUITEND één geldig JSON-object terug — geen uitleg, geen markdown, geen tekst eromheen — met exact deze velden:
-{
-  "spoken_reply": "string — je natuurlijke, gesproken Nederlandse antwoord (zin of zinnen)",
-  "provided_value": "string of null — genormaliseerde waarde voor het gevraagde veld indien van toepassing (geboortedatum als DD-MM-JJJJ, postcode als 1234AB, IBAN als 3 cijfers, bedrag als getal in euro's); null als je in deze beurt geen concrete waarde geeft",
-  "wants_repeat": "boolean — true als je vraagt om herhaling of het niet verstond",
-  "off_topic": "boolean — true als je antwoord afdwaalt van wat gevraagd werd",
-  "wants_to_end_call": "boolean — true als je wilt ophangen of het gesprek wilt stoppen"
-}`;
-
-  if(S.forceEdge){
-    p += "\n\nEXTRA INSTRUCTIE VOOR DEZE BEURT (edge case): " + EDGE_CASES[Math.floor(rng() * EDGE_CASES.length)];
-  }
-  return p;
+  const tpl = (S.customPrompt && sysPromptEl.value.trim()) ? sysPromptEl.value : PROMPT_TEMPLATE;
+  const vars = {
+    intelligence: sl.intelligence, intelligence_descriptor: desc("intelligence", sl.intelligence),
+    tech: sl.tech, tech_descriptor: desc("tech", sl.tech),
+    mood: sl.mood, mood_descriptor: desc("mood", sl.mood),
+    name: g.name, dob: g.date_of_birth, postcode: g.postcode, iban_last3: g.iban_last3,
+    current_amount: g.current_monthly_amount,
+    trend: trendNL[g.recent_usage_trend] || g.recent_usage_trend,
+    household_change: g.household_change ? "ja" : "nee",
+    solar: g.has_solar_panels ? "ja" : "nee",
+    bot_question: botQuestion, history: history, edge_instruction: edge,
+  };
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }
 
 /* ---------- OpenRouter call: one per customer turn ---------- */
@@ -1111,11 +1253,22 @@ async function orPost(body, timeoutMs){
   const key = keyInput.value.trim();
   if(!key) throw new Error("Geen OpenRouter API-sleutel ingevoerd.");
   try {
-    return await withTimeout(fetch(OPENROUTER_URL, {
+    let res = await withTimeout(fetch(OPENROUTER_URL, {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }), timeoutMs || 60000);
+    if(res.status === 429){        // rate limited — back off once and retry
+      const ra = parseFloat(res.headers.get("retry-after")) || 3;
+      logMeta("OpenRouter 429 (rate limit) — " + Math.round(ra) + "s wachten en opnieuw");
+      await sleep(Math.min(ra, 20) * 1000);
+      res = await withTimeout(fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }), timeoutMs || 60000);
+    }
+    return res;
   } catch(e){
     if(e && /^Time-out:/.test(e.message)) throw e;
     if(e && /^OpenRouter onbereikbaar:/.test(e.message)) throw e;
@@ -1134,7 +1287,7 @@ async function callCustomer(systemPrompt){
   const base = {
     model,
     messages: [{ role: "system", content: systemPrompt }],
-    temperature: 0.9,
+    temperature: (S.temperature != null ? S.temperature : 0.9),
     max_tokens: 2000,
   };
   // GLM 5.3 Flash is a reasoning model — its chain-of-thought lands in
@@ -1197,6 +1350,25 @@ async function callCustomer(systemPrompt){
   return normalizeReply(parsed);
 }
 
+/* ---------- ASR-error simulation (optional, "Simuleer spraakherkenningsfouten") ---------- */
+function garbleValue(field, val){
+  if(!S.asr || val == null || Math.random() > 0.35) return { value: val, changed: false };
+  let s = String(val);
+  const digits = (s.match(/\d/g) || []).length;
+  if(field === "iban_last3" || field === "date_of_birth" || /\d/.test(s)){
+    // swap or shift one digit — the classic voicebot mishear
+    const idxs = [];
+    for(let i = 0; i < s.length; i++) if(/\d/.test(s[i])) idxs.push(i);
+    if(!idxs.length) return { value: val, changed: false };
+    const i = idxs[Math.floor(Math.random() * idxs.length)];
+    const near = { "0":"8","1":"7","2":"3","3":"2","4":"5","5":"9","6":"5","7":"1","8":"0","9":"5" };
+    s = s.slice(0, i) + (near[s[i]] || "0") + s.slice(i + 1);
+  } else {
+    return { value: val, changed: false };
+  }
+  return { value: s, changed: s !== String(val), digits };
+}
+
 /* ---------- state machine ---------- */
 function initSocratic(){
   const c = scenario.socraticCount;
@@ -1211,19 +1383,22 @@ function handleStep(step, reply){
   switch(step.type){
 
     case "auth": {
+      const heard = garbleValue(step.field, reply.provided_value);
+      if(heard.changed) logMeta("🎤 ASR: “" + reply.provided_value + "” verkeerd verstaan als “" + heard.value + "”");
       const gtNorm = normalizeField(step.field, S.groundTruth[step.field]);
-      const provNorm = normalizeField(step.field, reply.provided_value);
+      const provNorm = normalizeField(step.field, heard.value);
       const match = !!provNorm && provNorm.length > 0 && provNorm === gtNorm;
+      const maxRetry = Math.max(0, S.retries | 0);
       if(match){
-        logMeta("✓ " + FIELD_LABEL[step.field] + " geverifieerd (" + reply.provided_value + ")");
+        logMeta("✓ " + FIELD_LABEL[step.field] + " geverifieerd (" + heard.value + ")");
         return { next: "continue" };
       }
-      if(E.attempts === 0){
-        E.attempts = 1;
-        logMeta("✗ " + FIELD_LABEL[step.field] + " onduidelijk/onjuist — één herkansing");
+      if(E.attempts < maxRetry){
+        E.attempts++;
+        logMeta("✗ " + FIELD_LABEL[step.field] + " onduidelijk/onjuist — poging " + E.attempts + "/" + maxRetry);
         return { next: "stay" };
       }
-      logMeta("✗ " + FIELD_LABEL[step.field] + " opnieuw fout — verificatie mislukt, sessie eindigt");
+      logMeta("✗ " + FIELD_LABEL[step.field] + " te vaak fout — verificatie mislukt, sessie eindigt");
       botSay(step.failLine);
       S.verification = false;
       return { next: "end", status: "failed" };
@@ -1239,7 +1414,9 @@ function handleStep(step, reply){
 
     case "ask_number": {
       if(reply.off_topic && E.redirects < 2){ E.redirects++; E.pendingPrefix = LINES.redirect; return { next:"stay" }; }
-      const amt = parseAmount(reply.provided_value) != null ? parseAmount(reply.provided_value) : parseAmount(reply.spoken_reply);
+      const heardAmt = garbleValue("amount", reply.provided_value);
+      if(heardAmt.changed) logMeta("🎤 ASR: bedrag “" + reply.provided_value + "” verkeerd verstaan als “" + heardAmt.value + "”");
+      const amt = parseAmount(heardAmt.value) != null ? parseAmount(heardAmt.value) : parseAmount(reply.spoken_reply);
       if(amt == null || amt <= 0){
         if(E.repeats < 3){ E.repeats++; E.pendingPrefix = LINES.repeat; return { next:"stay" }; }
         logMeta("Geen bruikbaar nieuw bedrag opgegeven — sessie afgerond zonder opslaan");
@@ -1309,16 +1486,29 @@ function applyDirective(dir){
   scheduleNext();
 }
 
-// Pacing so a viewer can actually follow the call unfold, not just when the
-// model is slow. TURN_GAP = pause between a customer reply and the next bot line;
-// BOT_READ = pause after the bot's line lands before the customer "thinks".
-const TURN_GAP_MS = 1900;
-const BOT_READ_MS = 1100;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
+// Pacing (see TEMPO / pace()): gap = pause between a customer reply and the next
+// bot line; read = pause after the bot's line lands before the customer "thinks".
 function scheduleNext(){
   clearTimeout(timer);
-  timer = setTimeout(() => runStep(), TURN_GAP_MS);
+  if(paused){ stepPending = true; updateRunCtl(); return; }   // held until "Volgende" / resume
+  timer = setTimeout(() => runStep(), pace().gap);
+}
+function updateRunCtl(){
+  const on = E.running;
+  pauseBtn.hidden = !on;
+  stepNextBtn.hidden = !on;
+  pauseBtn.textContent = paused ? "▶ Hervat" : "⏸ Pauze";
+  stepNextBtn.disabled = !(on && paused && stepPending);
+}
+function togglePause(){
+  if(!E.running) return;
+  paused = !paused;
+  if(!paused && stepPending){ stepPending = false; runStep(); }
+  updateRunCtl();
+  updateStatus();
+}
+function stepOnce(){
+  if(E.running && paused && stepPending){ stepPending = false; updateRunCtl(); runStep(); }
 }
 
 async function runStep(){
@@ -1360,7 +1550,7 @@ async function runStep(){
 
   // let the bot's line sit on screen a beat before the customer starts "talking"
   if(!fromRetry){
-    await sleep(BOT_READ_MS);
+    await sleep(pace().read);
     if(gen !== E.gen || !E.running) return;
   }
 
@@ -1399,12 +1589,14 @@ async function runStep(){
 function finish(status){
   E.running = false;
   clearTimeout(timer);
+  paused = false; stepPending = false;
   showThinking(false);
   S.status = status;
   S.endedAt = new Date().toISOString();
   if(status === "complete" && S.verification == null) S.verification = true;
 
   logMeta("Sessie beëindigd — status: " + status);
+  updateRunCtl();
   updateStatus();
   renderSummary();
   exportEnabled(true);
@@ -1444,6 +1636,15 @@ function buildExport(){
     scenario: { id: scenario.id, label: scenario.label },
     seed: S.seed,
     model: S.model,
+    config: {
+      preset: S.preset || null,
+      force_edge_case: S.forceEdge,
+      asr_errors: S.asr,
+      retries_per_field: S.retries,
+      tempo: S.tempo,
+      temperature: S.temperature,
+      custom_prompt: S.customPrompt,
+    },
     force_edge_case: S.forceEdge,
     sliders: S.sliders,
     slider_descriptors: sliderDescriptors(S.sliders),
@@ -1518,6 +1719,46 @@ function persistSliders(){
   try { localStorage.setItem("essent_vb_sliders", JSON.stringify(readSliders())); } catch(e){}
 }
 
+/* ---------- config panel (options / advanced / presets / tempo) ---------- */
+function applyPreset(id){
+  const p = PERSONA_PRESETS.find(x => x.id === id);
+  if(!p || !p.id) return;
+  setSliders({ intelligence: p.intelligence, tech: p.tech, mood: p.mood });
+  if(S.status === "idle") renderCallerMeta();
+}
+function readConfig(){        // pull the UI config into the session at Start
+  S.preset = presetSel.value;
+  S.asr = asrChk.checked;
+  S.retries = Math.max(0, Math.min(4, parseInt(retriesInput.value, 10) || 0));
+  S.tempo = tempoSel.value;
+  S.temperature = Math.max(0, Math.min(2, parseFloat(tempInput.value)));
+  if(!isFinite(S.temperature)) S.temperature = 0.9;
+  S.customPrompt = sysPromptEl.value.trim() !== "" && sysPromptEl.value.trim() !== PROMPT_TEMPLATE.trim();
+}
+function persistConfig(){
+  try {
+    localStorage.setItem("essent_vb_cfg", JSON.stringify({
+      preset: presetSel.value, edge: edgeChk.checked, asr: asrChk.checked, voice: voiceChk.checked,
+      retries: retriesInput.value, tempo: tempoSel.value, temp: tempInput.value,
+      prompt: (sysPromptEl.value.trim() === PROMPT_TEMPLATE.trim() ? "" : sysPromptEl.value),
+    }));
+  } catch(e){}
+}
+function restoreConfig(){
+  sysPromptEl.value = PROMPT_TEMPLATE;
+  let c = null;
+  try { c = JSON.parse(localStorage.getItem("essent_vb_cfg") || "null"); } catch(e){}
+  if(!c) return;
+  if(c.preset) presetSel.value = c.preset;
+  edgeChk.checked = !!c.edge;
+  asrChk.checked = !!c.asr;
+  voiceChk.checked = !!c.voice;
+  if(c.retries != null) retriesInput.value = c.retries;
+  if(c.tempo) tempoSel.value = c.tempo;
+  if(c.temp != null) tempInput.value = c.temp;
+  if(c.prompt) sysPromptEl.value = c.prompt;
+}
+
 /* ---------- actions ---------- */
 function onStart(){
   if(E.running) return;
@@ -1540,10 +1781,12 @@ function onStart(){
   S.model = DEFAULT_MODEL;
   S.startedAt = new Date().toISOString();
   S.status = "running";
+  readConfig();
 
   E = freshEngine();
   E.gen = ++GEN;
   E.running = true;
+  paused = false; stepPending = false;
 
   try { localStorage.setItem("essent_vb_key", key); } catch(e){}
 
@@ -1555,8 +1798,11 @@ function onStart(){
   playAllBtn.textContent = "🔊 Speel af";
   exportEnabled(false);
   startBtn.disabled = true;
+  updateRunCtl();
 
-  logMeta("Sessie gestart · model " + S.model + (S.forceEdge ? " · edge case AAN" : ""));
+  logMeta("Sessie gestart · model " + S.model +
+    " · tempo " + S.tempo + " · herkansingen " + S.retries + " · temp " + S.temperature +
+    (S.forceEdge ? " · edge case" : "") + (S.asr ? " · ASR-fouten" : "") + (S.customPrompt ? " · eigen prompt" : ""));
   updateStatus();
   generatePersonaImage();   // auto-portrait, runs alongside the conversation
   runStep();
@@ -1566,9 +1812,7 @@ function onNewSession(){
   GEN++;
   E.running = false;
   clearTimeout(timer);
-
-  setSliders(DEFAULTS);
-  edgeChk.checked = false;
+  paused = false; stepPending = false;
 
   S = freshSession();
   E = freshEngine();
@@ -1578,23 +1822,27 @@ function onNewSession(){
 
   clearTranscript();
   metaLogEl.innerHTML = "";
+  stepperEl.innerHTML = "";
   renderGroundTruth();
   resetPersona();
   stopAudio();
   playAllBtn.textContent = "🔊 Speel af";
   exportEnabled(false);
   startBtn.disabled = !keyInput.value.trim();
+  updateRunCtl();
   updateStatus();
   logMeta("Nieuwe sessie klaar — verse antwoordsleutel gegenereerd. Druk op Start.");
 }
 
 function onRandomize(){
-  const r = {
+  setSliders({
     intelligence: Math.floor(Math.random() * 101),
     tech: Math.floor(Math.random() * 101),
     mood: Math.floor(Math.random() * 101),
-  };
-  setSliders(r);
+  });
+  presetSel.value = "";
+  persistConfig();
+  if(S.status === "idle") renderCallerMeta();
 }
 
 /* ---------- wiring ---------- */
@@ -1613,11 +1861,21 @@ function onRandomize(){
     onNewSession();
   });
 
+  // presets
+  PERSONA_PRESETS.forEach(p => {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.label;
+    presetSel.appendChild(o);
+  });
+  presetSel.addEventListener("change", () => { applyPreset(presetSel.value); persistConfig(); });
+
   // sliders
   ["intelligence","tech","mood"].forEach(k => {
     sliders[k].addEventListener("input", () => {
       sliderVals[k].textContent = sliders[k].value;
       persistSliders();
+      presetSel.value = "";
+      persistConfig();
       if(S.status === "idle") renderCallerMeta();
     });
   });
@@ -1627,6 +1885,14 @@ function onRandomize(){
     const savedSliders = JSON.parse(localStorage.getItem("essent_vb_sliders") || "null");
     setSliders(savedSliders && typeof savedSliders === "object" ? { ...DEFAULTS, ...savedSliders } : DEFAULTS);
   } catch(e){ setSliders(DEFAULTS); }
+
+  restoreConfig();
+  [edgeChk, asrChk, voiceChk, retriesInput, tempoSel, tempInput].forEach(el =>
+    el.addEventListener("change", persistConfig));
+  sysPromptEl.addEventListener("input", persistConfig);
+  promptResetBtn.addEventListener("click", () => { sysPromptEl.value = PROMPT_TEMPLATE; persistConfig(); });
+  pauseBtn.addEventListener("click", togglePause);
+  stepNextBtn.addEventListener("click", stepOnce);
 
   try { keyInput.value = localStorage.getItem("essent_vb_key") || ""; } catch(e){}
 
@@ -1679,6 +1945,7 @@ function onRandomize(){
   renderGroundTruth();
   renderCallerMeta();
   startBtn.disabled = !keyInput.value.trim();
+  updateRunCtl();
   updateStatus();
 })();
 </script>

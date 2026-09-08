@@ -39,8 +39,24 @@ python3 -m http.server 8000
 | **Klantintelligentie** | 0 = struggles with simple instructions, swaps digits, needs everything repeated · 100 = sharp and efficient |
 | **Tech-vaardigheid** | 0 = doesn't know what "IBAN" means, fumbles the phone · 100 = knows exactly what's asked |
 | **Stemming** | 0 = calm and friendly · 100 = angry, threatens to escalate |
+| **Preset** | One-click slider combos (Vlotte klant, Boze gepensioneerde, Digibeet, Scherp én woedend, …). Editing a slider or Randomize sets it back to "eigen instelling". |
 | **🎲 Randomize** | Jumps all three sliders to random values — quick way to batch edge cases. |
 | **Forceer edge case** | Adds one curveball instruction to the prompt each turn (wrong digit, changing their mind, background noise, resistance to a question). |
+| **Simuleer spraakherkenningsfouten** | With some probability, corrupts one digit of the customer's provided value (birth date / IBAN / amount) *before* the deterministic match — a realistic ASR mishear. Logged as `🎤 ASR: … verkeerd verstaan als …`, and it can legitimately push a turn into a retry or failure. |
+| **Herkansingen per veld** | 0–4. How many failed attempts on an auth field before verification fails (default 1). |
+| **Tempo** | Langzaam / Normaal / Snel / Direct — the on-screen pause between lines. The model's own latency still dominates when it's slow. |
+| **Geavanceerd → Temperature** | Sampling temperature for the customer model (default 0.9). |
+| **Geavanceerd → Systeemprompt** | The full customer prompt as an editable template with `{tokens}` (`{mood_descriptor}`, `{history}`, `{bot_question}`, …). Edit it to change how the customer behaves; **↺ Terug naar standaard** restores it. Whether a custom prompt was used is recorded in the export. |
+
+**Run controls.** While a session runs, **⏸ Pauze** holds the conversation
+between turns; **⏭ Volgende** then advances exactly one turn at a time; **▶ Hervat**
+resumes. A phase stepper (Begroeting · Verificatie · Bedrag · Socratisch ·
+Afsluiting) above the transcript shows where the call is.
+
+The `config` block in the JSON export records preset, ASR, retries, tempo,
+temperature and whether a custom prompt was used, so a run can be reproduced.
+Config choices (sliders, options, tempo, prompt) persist in `localStorage`.
+Rate-limit (HTTP 429) responses back off once and retry.
 
 **Caller card + persona portrait.** The conversation panel opens with a caller
 card: name, approx. age, and the three slider values as chips. On **Start** an
@@ -55,9 +71,9 @@ thumbs-up). An illustration, not the real customer. `IMAGE_MODEL` (default
 `google/gemini-2.5-flash-image`, ~$0.04). If a portrait was made it is embedded
 (large base64) in the JSON export.
 
-The transcript is paced at roughly one line every ~2 seconds (`TURN_GAP_MS` /
-`BOT_READ_MS` in `index.html`) so a viewer can follow the call unfold even when
-the model responds instantly; when the model is slow its latency dominates.
+The transcript is paced by the **Tempo** control (`TEMPO` / `pace()` in
+`index.html`) so a viewer can follow the call unfold even when the model
+responds instantly; when the model is slow its latency dominates.
 
 **Klantstem (optional TTS).** Only the *customer's* lines, never the bot's. Tick
 **Klantstem** to have each customer reply spoken aloud as it appears, or click
